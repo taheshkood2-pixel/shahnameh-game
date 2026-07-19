@@ -185,8 +185,9 @@ function heroStats(id){
     const uid = eq[slot]; if(!uid) continue;
     const inv = state.inventory.find(x=>x.uid===uid); if(!inv) continue;
     const it = itemData(inv.id); if(!it) continue;
-    hp += it.hp||0; atk += it.atk||0; def += it.def||0; spd += it.spd||0; crit += it.crit||0;
-    if(it.hero === id){ atk = Math.floor(atk*1.2); hp = Math.floor(hp*1.2) }
+    let itemAtk = it.atk||0; let itemHp = it.hp||0; let itemDef = it.def||0; let itemSpd = it.spd||0; let itemCrit = it.crit||0;
+    if(it.hero === id){ itemAtk = Math.floor(itemAtk*1.2); itemHp = Math.floor(itemHp*1.2) }
+    hp += itemHp; atk += itemAtk; def += itemDef; spd += itemSpd; crit += itemCrit;
   }
   // Talents
   const talents = s.talents || {};
@@ -1982,7 +1983,7 @@ function useConsumable(invUid){
   const hero = state.heroes[heroId]; if(!hero) return;
   if(it.effect==='heal'){
     const stats = heroStats(heroId);
-    if(stats) hero.hp = Math.min(stats.maxHp, hero.hp + (stats.hp*0.3)); // heal 30% max hp
+    if(stats) hero.hp = Math.min(stats.hp, hero.hp + (stats.hp*0.3)); // heal 30% max hp
     sfx('heal'); haptic(30);
     toast(`💚 ${_(it.name)}: +${Math.floor(stats?stats.hp*0.3:50)} HP`,'success');
   } else if(it.effect==='energy'){

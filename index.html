@@ -61,6 +61,7 @@ html[dir=ltr] body{font-family:'Vazirmatn','Segoe UI',Roboto,sans-serif}
   border-radius:20px;border:1px solid #f5c54255;font-size:12px;font-weight:700;line-height:1;
   animation:resPulse 3s infinite}
 @keyframes resPulse{0%,90%,100%{border-color:#f5c54255}50%{border-color:#f5c542}}
+@keyframes logoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 .settings-btn{background:#f5c54233;border:1px solid var(--gold);color:var(--gold);
   padding:5px 9px;border-radius:12px;font-size:14px;cursor:pointer;font-weight:700}
 
@@ -77,8 +78,8 @@ html[dir=ltr] body{font-family:'Vazirmatn','Segoe UI',Roboto,sans-serif}
 #home{
   background:linear-gradient(180deg,#0f0620dd 0%,#1a0a2ecc 40%,#2a1846ee 100%),url('assets/bg/menu_bg.png') center/cover;
   align-items:center;text-align:center}
-#home .logo{max-width:60%;margin:8px auto 4px;filter:drop-shadow(0 4px 20px #f5c54288)}
-.tagline{color:var(--gold);font-size:12px;margin-bottom:10px;font-style:italic;opacity:0.8}
+#home .logo{max-width:65%;margin:8px auto 4px;filter:drop-shadow(0 6px 24px #f5c54299);animation:logoFloat 4s ease-in-out infinite}
+.tagline{color:var(--gold);font-size:14px;margin-bottom:12px;font-style:italic;opacity:1;letter-spacing:0.5px;text-shadow:0 0 6px #f5c54255}
 .big-btn{background:linear-gradient(180deg,#f5c542,#c1272d);color:#0f0620;
   font-weight:900;padding:11px 24px;border:none;border-radius:24px;
   font-size:14px;cursor:pointer;margin:4px;
@@ -118,9 +119,10 @@ html[dir=ltr] .chapter-box .ch-info{text-align:left}
 /* ===== BATTLE ===== */
 #battle{padding:0;background:linear-gradient(180deg,#0f0620,#2a1846)}
 .combat-log{position:absolute;top:60px;left:50%;transform:translateX(-50%);
-  background:#000c;padding:6px 14px;border-radius:20px;border:1px solid var(--gold);
-  color:var(--gold);font-size:12px;z-index:3;pointer-events:none;
-  opacity:0;transition:opacity 0.3s;text-align:center;max-width:80%;font-weight:700}
+  background:#000c;padding:7px 16px;border-radius:24px;border:2px solid var(--gold);
+  color:var(--gold);font-size:13px;z-index:3;pointer-events:none;
+  opacity:0;transition:opacity 0.3s;text-align:center;max-width:85%;font-weight:900;
+  text-shadow:0 0 8px #f5c542aa}
 .combat-log.show{opacity:1}
 .battle-scene{flex:1;display:flex;flex-direction:column;justify-content:space-between;
   background:linear-gradient(180deg,#0f0620ee 0%,#2a184688 50%,#0f0620ee 100%),
@@ -471,8 +473,8 @@ html[dir=ltr] .hero-card .tp-badge{right:auto;left:3px}
   .chapter-box{padding:8px 10px}
   .combatant{min-width:60px}
   .name-plate{font-size:10px;padding:3px 6px}
-  .hp-bar{height:9px}
-  .hp-bar .txt{font-size:7px;line-height:9px}
+  .hp-bar{height:10px}
+  .hp-bar .txt{font-size:9px;line-height:10px}
 }
 @media (min-width: 500px){
   .hero-grid{grid-template-columns:repeat(4,1fr)}
@@ -867,8 +869,8 @@ html[dir=ltr] .cine-skip{left:auto;right:14px}
 </body>
 </html>
 <style>
-.battle-badges { display:flex; justify-content:center; gap:2px; margin-top:4px; flex-wrap:wrap; }
-.battle-badge { width:22px; height:22px; border-radius:50%; border:1px solid #f5c542; object-fit:cover; }
+.battle-badges { display:flex; justify-content:center; gap:4px; margin-top:6px; flex-wrap:wrap; }
+.battle-badge { width:26px; height:26px; border-radius:50%; border:2px solid #f5c542; object-fit:cover; box-shadow:0 0 4px #f5c54266; }
 </style>
 <style>
 .hero-portrait-wrapper { position:relative; display:inline-block; max-width:200px; }

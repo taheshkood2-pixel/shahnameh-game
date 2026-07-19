@@ -1,4 +1,4 @@
-name: Build APK
+name: Build APK & Deploy Pages
 
 on:
   push:
@@ -13,23 +13,22 @@ permissions:
 jobs:
   deploy-pages:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - name: Setup Pages
         uses: actions/configure-pages@v4
+        continue-on-error: true
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: '.'
+        continue-on-error: true
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        continue-on-error: true
 
   build-apk:
-    needs: deploy-pages
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,122 +38,57 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Setup JDK 17
+      - name: Setup JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools-version: latest
 
-      - name: Install Android SDK components
+      - name: Prepare Web Directory
         run: |
-          echo "Installing required Android SDK components..."
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
-          yes | sdkmanager --licenses || true
-
-      - name: Install Capacitor
-        run: npm install @capacitor/core @capacitor/cli @capacitor/android
-
-      - name: Prepare minimal web directory
-        run: |
-          mkdir -p www/assets
+          mkdir -p www
           cp index.html data.js game.js music.js sw.js manifest.json www/
-          
-          # Copy only essential assets (no audio to keep APK small)
-          cp -r assets/fonts www/assets/ 2>/dev/null || true
-          cp -r assets/ui www/assets/ 2>/dev/null || true
-          
-          # Create placeholder for other assets (will load from GitHub Pages)
-          cat > www/assets/README.txt << 'AEOF'
-          Game assets load from: https://taheshkood2-pixel.github.io/shahnameh-game/assets/
-          AEOF
-          
-          echo "www size:"
-          du -sh www/
-          ls -la www/
+          cp -r assets www/
 
-      - name: Initialize Capacitor
+      - name: Build Android App with Capacitor
         run: |
-          cat > capacitor.config.json << 'CEOF'
-          {
-            "appId": "com.shahnameh.game",
-            "appName": "Shahnameh",
-            "webDir": "www",
-            "bundledWebRuntime": false,
-            "server": {
-              "url": "https://taheshkood2-pixel.github.io/shahnameh-game/"
-            }
-          }
-          CEOF
-          
+          npm init -y
+          npm install @capacitor/core@^6 @capacitor/cli@^6 @capacitor/android@^6
+          npx cap init "Shahnameh" "com.shahnameh.game" --web-dir=www
           npx cap add android
           npx cap sync android
 
-      - name: Configure Gradle
+      - name: Build Debug APK
+        working-directory: android
         run: |
-          cd android
-          cat > gradle.properties << 'GEOF'
-          org.gradle.jvmargs=-Xmx4096m
-          org.gradle.daemon=false
-          org.gradle.parallel=true
-          android.useAndroidX=true
-          android.enableJetifier=true
-          GEOF
-
-      - name: Build APK with detailed logging
-        run: |
-          cd android
           chmod +x gradlew
-          
-          echo "📋 Checking Gradle version..."
-          ./gradlew --version
-          
-          echo "🔨 Building APK..."
-          ./gradlew assembleDebug --no-daemon --stacktrace --info 2>&1 | tee build.log
-          
-          BUILD_STATUS=${PIPESTATUS[0]}
-          
-          echo "📋 Build log (last 100 lines):"
-          tail -100 build.log
-          
-          if [ $BUILD_STATUS -ne 0 ]; then
-            echo "❌ Build failed with status: $BUILD_STATUS"
-            echo "📋 Searching for errors in log:"
-            grep -i "error\|failed\|exception" build.log | head -20
-            exit $BUILD_STATUS
-          fi
-          
-          echo "✅ Build succeeded!"
-          ls -lh app/build/outputs/apk/debug/
-          cp app/build/outputs/apk/debug/app-debug.apk ../shahnameh-v22.apk
-          ls -lh ../shahnameh-v22.apk
+          ./gradlew assembleDebug --no-daemon
 
-      - name: Upload APK
+      - name: Copy Built APK
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk shahnameh-game.apk
+
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: shahnameh-apk-v22
-          path: shahnameh-v22.apk
+          name: shahnameh-game-apk
+          path: shahnameh-game.apk
           retention-days: 30
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
         with:
-          tag_name: v22-apk
-          name: "🎮 Shahnameh v22 APK"
+          tag_name: release-v${{ github.run_number }}
+          name: "🎮 Shahnameh Game APK v${{ github.run_number }}"
           body: |
-            ## 🏛 Shahnameh: Rise of Kings v22
+            ## 🏛 Shahnameh Game APK Build #${{ github.run_number }}
             
-            ### 📱 Install
-            1. Download APK
-            2. Enable unknown sources
-            3. Install & play!
-            
-            ### 🌐 Assets load from:
-            https://taheshkood2-pixel.github.io/shahnameh-game/
-          files: shahnameh-v22.apk
+            - Built automatically via GitHub Actions.
+            - Download `shahnameh-game.apk` below and install on Android devices.
+          files: shahnameh-game.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

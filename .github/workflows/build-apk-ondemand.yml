@@ -1,6 +1,5 @@
 name: Build APK (manual only)
 
-# Run only when manually triggered from Actions tab
 on:
   workflow_dispatch:
 
@@ -13,11 +12,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - uses: actions/setup-java@v4
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -28,13 +29,14 @@ jobs:
       - name: Prepare www folder
         run: |
           mkdir -p www
-          rsync -av --exclude='.git' --exclude='.github' --exclude='www' --exclude='android' --exclude='node_modules' --exclude='*.md' --exclude='package*.json' --exclude='capacitor.config.*' ./ www/
+          cp index.html data.js game.js music.js sw.js manifest.json www/
+          cp -r assets www/
 
-      - name: Init Capacitor
+      - name: Init Capacitor & Build Android
         run: |
           npm init -y
-          npm install --save-dev @capacitor/core@^6 @capacitor/cli@^6 @capacitor/android@^6
-          npx cap init "Shahnameh" "com.arena.shahnameh" --web-dir=www
+          npm install @capacitor/core@^6 @capacitor/cli@^6 @capacitor/android@^6
+          npx cap init "Shahnameh" "com.shahnameh.game" --web-dir=www
           npx cap add android
           npx cap sync android
 
@@ -44,16 +46,22 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
-      - uses: actions/upload-artifact@v4
+      - name: Copy Built APK
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk shahnameh-game.apk
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
         with:
           name: Shahnameh-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: shahnameh-game.apk
 
-      - uses: softprops/action-gh-release@v2
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: apk-${{ github.run_number }}
-          name: Shahnameh APK ${{ github.run_number }}
-          files: android/app/build/outputs/apk/debug/app-debug.apk
+          tag_name: manual-apk-${{ github.run_number }}
+          name: Shahnameh APK #${{ github.run_number }}
+          files: shahnameh-game.apk
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

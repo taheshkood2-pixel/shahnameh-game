@@ -881,3 +881,14 @@ html[dir=ltr] .cine-skip{left:auto;right:14px}
 .hero-equip-necklace { top:10px; left:5px; }
 .hero-equip-belt { bottom:60px; right:10px; }
 </style>
+<style>
+@keyframes itemFloat {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-4px) scale(1.1); opacity: 0.9; }
+}
+.battle-badges img.battle-badge {
+  animation: itemFloat 1.5s ease-in-out infinite;
+}
+.battle-badges img.battle-badge:nth-child(odd) { animation-delay: 0.3s; }
+.battle-badges img.battle-badge:nth-child(even) { animation-delay: 0.6s; }
+</style>

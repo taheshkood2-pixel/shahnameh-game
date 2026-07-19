@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400" width="300" height="400">
+<defs>
+<radialGradient id="g" cx="0.5" cy="0.5" r="0.5">
+<stop offset="0" stop-color="#6a1b9a" stop-opacity="0.9"/>
+<stop offset="1" stop-color="#1a0033" stop-opacity="0"/>
+</radialGradient>
+</defs>
+<circle cx="150" cy="200" r="130" fill="url(#g)"/>
+<text x="150" y="270" font-size="220" text-anchor="middle" fill="#2196f3">💀</text>
+</svg>

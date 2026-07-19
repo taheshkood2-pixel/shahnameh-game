@@ -1,0 +1,59 @@
+name: Build APK (manual only)
+
+# Run only when manually triggered from Actions tab
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Prepare www folder
+        run: |
+          mkdir -p www
+          rsync -av --exclude='.git' --exclude='.github' --exclude='www' --exclude='android' --exclude='node_modules' --exclude='*.md' --exclude='package*.json' --exclude='capacitor.config.*' ./ www/
+
+      - name: Init Capacitor
+        run: |
+          npm init -y
+          npm install --save-dev @capacitor/core@^6 @capacitor/cli@^6 @capacitor/android@^6
+          npx cap init "Shahnameh" "com.arena.shahnameh" --web-dir=www
+          npx cap add android
+          npx cap sync android
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Shahnameh-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: Shahnameh APK ${{ github.run_number }}
+          files: android/app/build/outputs/apk/debug/app-debug.apk
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

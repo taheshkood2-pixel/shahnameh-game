@@ -1,25 +1,43 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="400" height="500">
 <defs>
 <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-<stop offset="0" stop-color="#1b5e20"/>
-<stop offset="1" stop-color="#000"/>
+<stop offset="0" stop-color="#4a148c"/>
+<stop offset="1" stop-color="#1a0033"/>
 </linearGradient>
-<radialGradient id="glow" cx="0.5" cy="0.4" r="0.5">
-<stop offset="0" stop-color="#fff" stop-opacity="0.3"/>
-<stop offset="1" stop-color="#fff" stop-opacity="0"/>
+<radialGradient id="glow" cx="0.5" cy="0.35" r="0.6">
+<stop offset="0" stop-color="#2196f3" stop-opacity="0.5"/>
+<stop offset="1" stop-color="#2196f3" stop-opacity="0"/>
 </radialGradient>
-<pattern id="pat" width="40" height="40" patternUnits="userSpaceOnUse">
-<path d="M20 0 L40 20 L20 40 L0 20 Z" fill="none" stroke="#2196f3" stroke-width="0.5" opacity="0.3"/>
+<pattern id="pat" width="30" height="30" patternUnits="userSpaceOnUse">
+<path d="M15 0 L30 15 L15 30 L0 15 Z" fill="none" stroke="#2196f3" stroke-width="0.4" opacity="0.25"/>
 </pattern>
+<filter id="shadow">
+<feGaussianBlur stdDeviation="3" result="blur"/>
+<feOffset dx="0" dy="4" result="off"/>
+<feFlood flood-color="#000" flood-opacity="0.5"/>
+<feComposite in2="off" operator="in"/>
+<feComposite in="SourceGraphic"/>
+</filter>
 </defs>
 <rect width="400" height="500" fill="url(#bg)"/>
 <rect width="400" height="500" fill="url(#pat)"/>
 <rect width="400" height="500" fill="url(#glow)"/>
-<circle cx="200" cy="200" r="120" fill="#1b5e20" opacity="0.6" stroke="#2196f3" stroke-width="4"/>
-<text x="200" y="250" font-size="140" text-anchor="middle" fill="#2196f3" font-family="serif" font-weight="bold">⚔</text>
-<rect x="0" y="420" width="400" height="80" fill="#000" opacity="0.7"/>
-<text x="200" y="465" font-size="28" text-anchor="middle" fill="#2196f3" font-family="'Vazirmatn',Tahoma,serif" font-weight="bold">هومان تورانی</text>
-<rect x="20" y="20" width="60" height="30" rx="6" fill="#2196f3"/>
-<text x="50" y="42" font-size="18" text-anchor="middle" fill="#fff" font-weight="900">R</text>
-<rect x="0" y="0" width="400" height="500" fill="none" stroke="#2196f3" stroke-width="6"/>
+<!-- decorative frame corners -->
+<path d="M0 40 L0 0 L40 0" fill="none" stroke="#2196f3" stroke-width="3" opacity="0.7"/>
+<path d="M360 0 L400 0 L400 40" fill="none" stroke="#2196f3" stroke-width="3" opacity="0.7"/>
+<path d="M0 460 L0 500 L40 500" fill="none" stroke="#2196f3" stroke-width="3" opacity="0.7"/>
+<path d="M360 500 L400 500 L400 460" fill="none" stroke="#2196f3" stroke-width="3" opacity="0.7"/>
+<!-- portrait circle -->
+<circle cx="200" cy="200" r="120" fill="#4a148c" opacity="0.7" stroke="#2196f3" stroke-width="4"/>
+<circle cx="200" cy="200" r="110" fill="none" stroke="#2196f3" stroke-width="1" opacity="0.5"/>
+<!-- symbol -->
+<text x="200" y="255" font-size="130" text-anchor="middle" fill="#2196f3" filter="url(#shadow)">🗡</text>
+<!-- name banner -->
+<rect x="0" y="415" width="400" height="90" fill="#000" opacity="0.8"/>
+<rect x="0" y="415" width="400" height="4" fill="#2196f3"/>
+<text x="200" y="460" font-size="26" text-anchor="middle" fill="#2196f3" font-family="'Vazirmatn',Tahoma,serif" font-weight="bold">هومان</text>
+<text x="200" y="485" font-size="14" text-anchor="middle" fill="#a89a70" font-family="serif">Hooman</text>
+<!-- rarity badge -->
+<rect x="15" y="15" width="55" height="30" rx="8" fill="#2196f3"/>
+<text x="42" y="37" font-size="18" text-anchor="middle" fill="#fff" font-weight="900">R</text>
 </svg>

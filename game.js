@@ -1403,6 +1403,26 @@ function renderHeroes(){
     const stats = owned ? heroStats(h.id) : null;
     const card = document.createElement('div');
     card.className = `hero-card rarity-${h.rarity} ${owned?'owned':'locked'} ${inTeam?'in-team':''}`;
+    // Equipment dots on grid card
+    let equipDots = '';
+    if(owned && s.equipment){
+      const eqCount = Object.values(s.equipment).filter(v=>v).length;
+      if(eqCount > 0){
+        equipDots = '<div style="position:absolute;bottom:24px;right:3px;display:flex;gap:1px">';
+        const slots = ['weapon','helm','armor','boots','ring','necklace','belt'];
+        slots.forEach(sl=>{
+          if(s.equipment[sl]){
+            const inv = state.inventory.find(x=>x.uid===s.equipment[sl]);
+            if(inv){
+              const it = itemData(inv.id);
+              const col = it.rarity==='Legendary'?'var(--ssr)':it.rarity==='Epic'?'var(--sr)':it.rarity==='Rare'?'var(--r)':'var(--muted)';
+              equipDots += '<div style="width:5px;height:5px;border-radius:50%;background:'+col+'"></div>';
+            }
+          }
+        });
+        equipDots += '</div>';
+      }
+    }
     card.innerHTML = `
       <div class="rarity">${h.rarity}</div>
       ${owned?`<div class="lvl">Lv.${s.level}</div>`:''}
@@ -1410,6 +1430,7 @@ function renderHeroes(){
       ${owned && (s.talentPoints||0)>0?`<div class="tp-badge">⭐${s.talentPoints}</div>`:''}
       <img src="${assetPath('hero',h.id)}">
       ${!owned?'<div class="lock">🔒</div>':''}
+      ${equipDots}
       <div class="name">${_(h.name)}</div>
       <div class="power">${owned?`⚡ ${formatNum(stats.power)}`:_(D.locked)}</div>`;
     card.onclick = ()=>{ sfx('click'); openHero(h.id) };
@@ -1820,6 +1841,7 @@ function showScreen(id){
   if(id==='pets') renderPets();
   if(id==='minigames') renderMinigames();
   if(id==='settings') renderSettings();
+  if(id==='shop') renderShop();
 }
 function refreshHome(){
   const c = chapterData(state.progress.chapter);
@@ -2229,13 +2251,64 @@ function enhanceItem(uid){
   if(document.getElementById('itemModal').classList.contains('show')) openItemDetail(inv);
 }
 
+
+// ---------------- SHOP ----------------
+const SHOP_ITEMS = [
+  {id:'scroll', name:{fa:'طومار احضار',en:'Summon Scroll'}, cost:500, currency:'gold', give:{scrolls:1}},
+  {id:'potion_hp_small', name:{fa:'معجون سلامتی',en:'Health Potion'}, cost:200, currency:'gold', give:{item:'potion_hp_small'}},
+  {id:'potion_hp_medium', name:{fa:'معجون بزرگ',en:'Greater Potion'}, cost:500, currency:'gold', give:{item:'potion_hp_medium'}},
+  {id:'energy', name:{fa:'انرژی احضار',en:'Summon Energy'}, cost:80, currency:'gems', give:{energy:1}},
+  {id:'random_rare', name:{fa:'جعبه آیتم کمیاب',en:'Rare Item Box'}, cost:2000, currency:'gold', give:{randomItem:'Rare'}},
+  {id:'random_epic', name:{fa:'جعبه آیتم حماسی',en:'Epic Item Box'}, cost:800, currency:'gems', give:{randomItem:'Epic'}},
+];
+
+function renderShop(){
+  const c = document.getElementById('shopList'); if(!c) return; c.innerHTML='';
+  SHOP_ITEMS.forEach(si=>{
+    const div = document.createElement('div');
+    div.className = 'building';
+    const icon = si.id.includes('potion')?'🧪':si.id==='scroll'?'📜':si.id==='energy'?'⚡':si.id.includes('rare')?'📦':'⭐';
+    const curIcon = si.currency==='gold'?'💰':'💎';
+    const canBuy = si.currency==='gold'? state.gold >= si.cost : state.gems >= si.cost;
+    div.innerHTML = `
+      <div class="b-icon">${icon}</div>
+      <div class="info">
+        <div class="name">${_(si.name)}</div>
+        <div class="desc">${si.cost} ${curIcon}</div>
+      </div>
+      <button class="up-btn" ${canBuy?'':'disabled'} onclick="buyShopItem('${si.id}')">${_(D.claim)}</button>`;
+    c.appendChild(div);
+  });
+}
+
+function buyShopItem(shopId){
+  const si = SHOP_ITEMS.find(x=>x.id===shopId); if(!si) return;
+  if(si.currency==='gold'){
+    if(state.gold < si.cost){ toast(_(D.no_gold),'error'); return }
+    state.gold -= si.cost;
+  } else {
+    if(state.gems < si.cost){ toast(_(D.no_gems),'error'); return }
+    state.gems -= si.cost;
+  }
+  if(si.give.scrolls) state.scrolls += si.give.scrolls;
+  if(si.give.energy){ state.summonEnergy = Math.min(BALANCE.summonEnergyMax, state.summonEnergy + si.give.energy) }
+  if(si.give.item) addItem(si.give.item);
+  if(si.give.randomItem){
+    const pool = ITEMS.filter(i=>i.rarity===si.give.randomItem && i.type!=='consumable');
+    if(pool.length){ const drop = pool[Math.floor(Math.random()*pool.length)]; addItem(drop.id); toast(`🎁 ${_(drop.name)}`,'success') }
+  }
+  sfx('coin'); haptic(30);
+  toast(`🏪 ${_(si.name)} ${_({fa:'خریداری شد',en:'purchased!'})}`, 'success');
+  save(); refreshUI(); renderShop();
+}
+
 Object.assign(window, {
   showScreen, summon, startCampaign, startEndless, toggleAuto, toggleSpeed,
   claimIdle, toggleLang, openHero, closeModal, upgradeHero, upgradeBuilding,
   toggleDeploy, filterInv, switchTab, claimQuest, claimAchievement,
   togglePet, upgradePet, openMinigame, closeMini, forgeHit, toggleSetting,
   exportSave, importSave, resetGame, upgradeTalent, resetTalents, switchHeroTab,
-  openEquipPicker, unequipItem, nextCinematicScene, skipCinematic, tutorialNext, tutorialSkip, playMusic, stopMusic, toggleMusicSetting, startTutorial, togglePause, useConsumable, enhanceItem,
+  openEquipPicker, unequipItem, nextCinematicScene, skipCinematic, tutorialNext, tutorialSkip, playMusic, stopMusic, toggleMusicSetting, startTutorial, togglePause, useConsumable, enhanceItem, renderShop, buyShopItem,
 });
 
 // ---------------- ENEMY ITEM DROP CHANCE & CONSUMABLE USE ----------------

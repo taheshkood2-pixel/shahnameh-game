@@ -1,9 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
-<defs>
-<linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#2196f3"/><stop offset="100%" stop-color="#1565c0"/></linearGradient>
-</defs>
-<rect width="200" height="200" fill="url(#g)" rx="20"/>
-<rect x="8" y="8" width="184" height="184" fill="none" stroke="#fff" stroke-width="4" rx="14"/>
-<text x="100" y="110" font-size="80" text-anchor="middle" fill="#fff" font-family="sans-serif" font-weight="bold">B</text>
-<text x="100" y="160" font-size="14" text-anchor="middle" fill="#fff" font-family="sans-serif">boots_19</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 140">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0%" stop-color="#1a237e"/><stop offset="100%" stop-color="#0d1b2a"/></linearGradient></defs>
+<rect width="100" height="140" rx="12" fill="url(#bg)" stroke="#2196f3" stroke-width="2"/>
+
+<ellipse cx="50" cy="100" rx="25" ry="12" fill="#64b5f6" opacity="0.7"/><line x1="50" y1="50" x2="35" y2="88" stroke="#64b5f6" stroke-width="3"/><line x1="50" y1="50" x2="65" y2="88" stroke="#64b5f6" stroke-width="3"/>
+
 </svg>

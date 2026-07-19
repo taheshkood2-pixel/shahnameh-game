@@ -1,13 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="800" height="400">
-<defs>
-<linearGradient id="s" x1="0" y1="0" x2="0" y2="1">
-<stop offset="0" stop-color="#546e7a"/>
-<stop offset="1" stop-color="#263238"/>
-</linearGradient>
-</defs>
-<rect width="800" height="400" fill="url(#s)"/>
-<g opacity="0.3">
-<path d="M0 300 Q200 200 400 280 T800 260 L800 400 L0 400 Z" fill="#000"/>
-<path d="M0 340 Q200 300 400 320 T800 310 L800 400 L0 400 Z" fill="#000" opacity="0.5"/>
-</g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#0a1628"/><stop offset="60%" stop-color="#1a3a5c"/><stop offset="100%" stop-color="#2d1810"/></linearGradient></defs>
+<rect width="400" height="300" fill="url(#sky)"/>
+<polygon points="0,300 80,120 160,300" fill="#2d3748"/>
+<polygon points="100,300 200,80 300,300" fill="#1a202c"/>
+<polygon points="250,300 350,100 400,180 400,300" fill="#2d3748"/>
+<polygon points="200,80 190,95 210,95" fill="#e2e8f0" opacity="0.8"/>
+<polygon points="350,100 340,115 360,115" fill="#e2e8f0" opacity="0.6"/>
+<circle cx="350" cy="40" r="15" fill="#f5e9c8" opacity="0.3"/>
+<rect x="0" y="260" width="400" height="40" fill="#1a0a00"/>
+<path d="M0 270 Q100 250 200 270 Q300 290 400 270 L400 300 L0 300 Z" fill="#2d1810"/>
 </svg>

@@ -40,7 +40,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -53,7 +53,8 @@ jobs:
       - name: Initialize Capacitor project
         run: |
           npm init -y
-          npm install --save-dev @capacitor/core @capacitor/cli @capacitor/android
+          # Pin to Capacitor 6 which is more stable & works with Java 17-21
+          npm install --save-dev @capacitor/core@^6 @capacitor/cli@^6 @capacitor/android@^6
           npx cap init "Shahnameh" "com.arena.shahnameh" --web-dir=www
           npx cap add android
           npx cap sync android

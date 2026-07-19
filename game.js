@@ -1361,7 +1361,7 @@ function renderInventory(){
     if(it && it.type==='consumable'){
       const btn = document.createElement('button');
       btn.className = 'mini-btn'; btn.textContent = '🍵 USE';
-      btn.style.width = '100%'; btn.style.marginTop = '4px'; btn.style.fontSize = '10px';
+      btn.style.width = '100%'; btn.style.marginTop = '4px'; btn.style.fontSize = '13px'; btn.style.padding = '10px 0';
       btn.onclick = (e)=>{ e.stopPropagation(); useConsumable(inv.uid); openItemDetail(inv); refreshUI() };
       card.appendChild(btn);
     }

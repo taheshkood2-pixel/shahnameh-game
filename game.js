@@ -216,7 +216,7 @@ function evolveHero(heroId){
   s.stars = (s.stars || 0) + 1;
   sfx('fanfare'); haptic([50,30,50,30,100]);
   toast('⭐ '+_(heroData(heroId).name)+' → '+s.stars+'★','success',3000);
-  if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_star.mp3'; a.play().catch(()=>{}) }catch(e){} }
+  if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_levelup.mp3'; a.play().catch(()=>{}) }catch(e){} }
   save(); refreshUI();
   if(document.getElementById('heroModal').classList.contains('show')) openHero(heroId);
 }
@@ -312,7 +312,7 @@ function equipItem(heroId, uid){
   }
   state.heroes[heroId].equipment[it.type] = uid;
   state.stats.equips++; state.stats.d_equips++;
-  if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_equip.mp3'; a.volume=0.4; a.play().catch(()=>{}) }catch(e){} }
+  if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_upgrade.mp3'; a.volume=0.4; a.play().catch(()=>{}) }catch(e){} }
   const eq = state.heroes[heroId].equipment;
   if(eq.weapon && eq.helm && eq.armor && eq.boots && eq.ring && eq.necklace && eq.belt) state.stats.fullEquipHero = 1;
   save(); checkAchievements(); checkQuests();
@@ -2565,7 +2565,7 @@ function doPrestige(){
   }
   sfx('fanfare'); haptic([100,50,100,50,200]);
   toast('🌟 PRESTIGE '+state.prestige+'! +'+Math.floor(state.prestigeBonus*100)+'% Power','success',5000);
-  if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_prestige.mp3'; a.play().catch(()=>{}) }catch(e){} }
+  if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_levelup.mp3'; a.play().catch(()=>{}) }catch(e){} }
   save(); refreshUI(); showScreen('home');
 }
 
@@ -2616,7 +2616,7 @@ function getDailyChallenge(){
 }
 
 function startDailyChallenge(){
-  if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_daily.mp3'; a.volume=0.5; a.play().catch(()=>{}) }catch(e){} }
+  if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_quest.mp3'; a.volume=0.5; a.play().catch(()=>{}) }catch(e){} }
   const ch = getDailyChallenge();
   if(ch.completed){ toast(_({fa:'امروز انجام دادی! فردا بیا.',en:'Done today! Come back tomorrow.'}),'error'); return }
   const enemyBase = enemyData(ch.enemy);
@@ -2809,7 +2809,7 @@ function maybeDropItem(){
     else pool = ITEMS.filter(i => i.rarity==='Common' && i.type!=='consumable');
     if(pool.length===0) pool = ITEMS.filter(i => i.type!=='consumable');
     const drop = pool[Math.floor(Math.random()*pool.length)];
-    if(drop){ addItem(drop.id); sfx('coin'); toast(`💎 ${_(itemData(drop.id).name)}!`,'success',3000); if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_item.mp3'; a.volume=0.4; a.play().catch(()=>{}) }catch(e){} } }
+    if(drop){ addItem(drop.id); sfx('coin'); toast(`💎 ${_(itemData(drop.id).name)}!`,'success',3000); if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_upgrade.mp3'; a.volume=0.4; a.play().catch(()=>{}) }catch(e){} } }
   }
   // Consumable drop chance
   if(Math.random() < 0.20){

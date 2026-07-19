@@ -216,6 +216,7 @@ function evolveHero(heroId){
   s.stars = (s.stars || 0) + 1;
   sfx('fanfare'); haptic([50,30,50,30,100]);
   toast('⭐ '+_(heroData(heroId).name)+' → '+s.stars+'★','success',3000);
+  if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_star.mp3'; a.play().catch(()=>{}) }catch(e){} }
   save(); refreshUI();
   if(document.getElementById('heroModal').classList.contains('show')) openHero(heroId);
 }
@@ -311,6 +312,7 @@ function equipItem(heroId, uid){
   }
   state.heroes[heroId].equipment[it.type] = uid;
   state.stats.equips++; state.stats.d_equips++;
+  if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_equip.mp3'; a.volume=0.4; a.play().catch(()=>{}) }catch(e){} }
   const eq = state.heroes[heroId].equipment;
   if(eq.weapon && eq.helm && eq.armor && eq.boots && eq.ring && eq.necklace && eq.belt) state.stats.fullEquipHero = 1;
   save(); checkAchievements(); checkQuests();
@@ -411,6 +413,7 @@ function summon(type){
         if(h.id==='rostam') state.stats.hasRostam = 1;
         results.push({hero:h, dupe:false, forced});
         sfx('fanfare');
+        if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_summon.mp3'; a.play().catch(()=>{}) }catch(e){} }
       }
     }
     state.stats.summons += count;
@@ -684,7 +687,10 @@ function dmgPopup(sel, amt, crit){
   if(crit) p.style.color = '#ffd700';
   el.appendChild(p);
   setTimeout(()=>p.remove(), 1000);
-  if(state.settings.particleEffects) spawnParticles(el, crit?'#ffd700':'#ff4444', crit?'crit':'spark');
+  if(state.settings.particleEffects){
+      spawnParticles(el, crit?'#ffd700':'#ff4444', crit?'crit':'spark');
+      battleParticleBurst(el, crit?'crit':'fire');
+    }
   // Screen shake on crits and boss hits
   if(crit && state.settings.particleEffects){
     const scene = document.querySelector('.battle-scene');
@@ -897,7 +903,7 @@ function battleTick(){
       });
       logBattle('💚 '+attacker.name+' — '+_({fa:'شفای تیمی!',en:'Team Heal!'}));
       sfx('heal');
-      if(state.settings.particleEffects){ battle.players.forEach((p,i)=>{ const el=document.querySelector('#p'+i); if(el&&p.alive) spawnParticles(el,'#4caf50','heal') }) }
+      if(state.settings.particleEffects){ battle.players.forEach((p,i)=>{ const el=document.querySelector('#p'+i); if(el&&p.alive){ spawnParticles(el,'#4caf50','heal'); battleParticleBurst(el,'heal') }}) }
     }
     // Default for any other class
     else {
@@ -907,7 +913,10 @@ function battleTick(){
       setTimeout(()=>dmgPopup(tgtSel, '✦'+bonusDmg, true), 200);
       logBattle('✨ '+attacker.name+' — '+_({fa:'مهارت ویژه!',en:'Special Skill!'}));
       if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_skill.mp3'; a.volume=0.4; a.play().catch(()=>{}) }catch(e){} }
-      if(state.settings.particleEffects) spawnParticles(atkEl, '#ffd700', 'skill');
+      if(state.settings.particleEffects){
+        spawnParticles(atkEl, '#ffd700', 'skill');
+        battleParticleBurst(atkEl, 'skill');
+      }
     }
   }
   // Enemy skills: just bonus damage
@@ -953,12 +962,15 @@ function battleTick(){
       document.querySelector('.battle-scene')?.appendChild(comboEl);
     }
     comboEl.textContent = comboCount + 'x COMBO!';
+    if(state.settings.sound && comboCount===3){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_combo.mp3'; a.volume=0.4; a.play().catch(()=>{}) }catch(e){} }
     comboEl.style.opacity = '1';
     comboEl.style.transform = 'translate(-50%,-50%) scale('+(1+comboCount*0.05)+')';
     clearTimeout(comboEl._hide);
     comboEl._hide = setTimeout(()=>{ comboEl.style.opacity='0' }, 1500);
   }
-  if(target.hp<=0){ target.hp=0; target.alive=false; sfx('whoosh') }
+  if(target.hp<=0){ target.hp=0; target.alive=false; sfx('whoosh');
+    const tgtEl = document.querySelector(tgtSel); if(tgtEl) battleParticleBurst(tgtEl,'death');
+  }
   updateHPBars();
   if(battle.enemies.every(e=>!e.alive)){ return endBattle(true) }
   if(battle.players.every(p=>!p.alive)){ return endBattle(false) }
@@ -1032,6 +1044,11 @@ function endBattle(win){
       }
       if(state.progress.stage >= ch.stages.length){
         state.stats['ch'+state.progress.chapter] = 1;
+        // Play next chapter narration
+        const nextCh = state.progress.chapter + 1;
+        if(nextCh <= 7 && state.settings.sound){
+          try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/narrator_ch'+nextCh+'.mp3'; a.play().catch(()=>{}) }catch(e){}
+        }
         setTimeout(()=>{
           if(ch.outro) showStory(ch,'outro',()=>{
             state.progress.chapter++;
@@ -1113,6 +1130,7 @@ function upgradeHero(id){
   sfx('levelup'); haptic([50,30,50]);
   save(); refreshUI();
   toast(`⬆ Lv.${s.level}!`,'success');
+  if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_upgrade.mp3'; a.volume=0.5; a.play().catch(()=>{}) }catch(e){} }
   if(document.getElementById('heroModal').classList.contains('show')) openHero(id);
   checkAchievements(); checkQuests();
 }
@@ -1328,6 +1346,7 @@ function checkQuests(){
     if(val >= q.goal){
       state.quests[q.id] = true;
       toast(`📜 ${_(q.name)}`,'success');
+      if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_quest.mp3'; a.volume=0.4; a.play().catch(()=>{}) }catch(e){} }
       sfx('achieve');
     }
   });
@@ -2408,6 +2427,11 @@ window.addEventListener('DOMContentLoaded', ()=>{
 
   // start ambient music
   setTimeout(()=>{ if(state.settings.music) playMusic('menu') }, 1200);
+  // Wake up message after long absence
+  const hoursAway = Math.floor((Date.now() - state.lastIdle)/1000/3600);
+  if(hoursAway >= 2 && state.settings.sound){
+    setTimeout(()=>{ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_wakeup.mp3'; a.volume=0.6; a.play().catch(()=>{}) }catch(e){} }, 2000);
+  }
 
   // First time: give bonus starting items + free SR hero
   if(!state.onboardingDone && state.stats.battles === 0){
@@ -2541,6 +2565,7 @@ function doPrestige(){
   }
   sfx('fanfare'); haptic([100,50,100,50,200]);
   toast('🌟 PRESTIGE '+state.prestige+'! +'+Math.floor(state.prestigeBonus*100)+'% Power','success',5000);
+  if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_prestige.mp3'; a.play().catch(()=>{}) }catch(e){} }
   save(); refreshUI(); showScreen('home');
 }
 
@@ -2591,6 +2616,7 @@ function getDailyChallenge(){
 }
 
 function startDailyChallenge(){
+  if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_daily.mp3'; a.volume=0.5; a.play().catch(()=>{}) }catch(e){} }
   const ch = getDailyChallenge();
   if(ch.completed){ toast(_({fa:'امروز انجام دادی! فردا بیا.',en:'Done today! Come back tomorrow.'}),'error'); return }
   const enemyBase = enemyData(ch.enemy);
@@ -2662,6 +2688,103 @@ function closeBattleResult(){
   else showScreen('home');
 }
 
+
+// ===== PIXI.JS PROFESSIONAL PARTICLE SYSTEM =====
+let pixiApp = null;
+let pixiParticles = [];
+
+function initParticleEngine(){
+  const canvas = document.getElementById('particleCanvas');
+  if(!canvas || typeof PIXI === 'undefined') return;
+  try {
+    pixiApp = new PIXI.Application({
+      view: canvas,
+      width: canvas.offsetWidth || 360,
+      height: canvas.offsetHeight || 600,
+      transparent: true,
+      antialias: true,
+      resizeTo: canvas.parentElement,
+    });
+    // Resize handler
+    window.addEventListener('resize', ()=>{
+      if(pixiApp){
+        pixiApp.renderer.resize(canvas.parentElement.offsetWidth, canvas.parentElement.offsetHeight);
+      }
+    });
+    pixiApp.ticker.add(updateParticles);
+  } catch(e){ console.warn('PixiJS init failed', e) }
+}
+
+function spawnPixiParticles(type, x, y, count){
+  if(!pixiApp) return;
+  const configs = {
+    fire: {colors:[0xff4400,0xff6600,0xffaa00,0xff2200], size:[3,8], speed:[2,5], life:[0.5,1.2], gravity:-2},
+    heal: {colors:[0x44ff44,0x88ff88,0x22cc22,0xaaffaa], size:[2,6], speed:[1,3], life:[0.8,1.5], gravity:-1.5},
+    crit: {colors:[0xffd700,0xffaa00,0xffffff,0xff8800], size:[3,10], speed:[3,8], life:[0.3,0.8], gravity:0},
+    skill: {colors:[0xffd700,0xff8c00,0xf5c542,0xffffff], size:[4,12], speed:[2,6], life:[0.6,1.2], gravity:0},
+    death: {colors:[0x666666,0x444444,0x222222,0x888888], size:[2,6], speed:[1,4], life:[0.8,2.0], gravity:2},
+    magic: {colors:[0x9c27b0,0x7b1fa2,0xce93d8,0xffd700], size:[3,8], speed:[2,5], life:[0.5,1.0], gravity:-1},
+  };
+  const cfg = configs[type] || configs.fire;
+  count = count || 30;
+  for(let i=0;i<count;i++){
+    const g = new PIXI.Graphics();
+    const color = cfg.colors[Math.floor(Math.random()*cfg.colors.length)];
+    const size = cfg.size[0] + Math.random()*(cfg.size[1]-cfg.size[0]);
+    g.beginFill(color);
+    g.drawCircle(0,0,size);
+    g.endFill();
+    g.x = x + (Math.random()-0.5)*30;
+    g.y = y + (Math.random()-0.5)*30;
+    const angle = Math.random()*Math.PI*2;
+    const speed = cfg.speed[0] + Math.random()*(cfg.speed[1]-cfg.speed[0]);
+    g.vx = Math.cos(angle)*speed;
+    g.vy = Math.sin(angle)*speed;
+    g.life = cfg.life[0] + Math.random()*(cfg.life[1]-cfg.life[0]);
+    g.maxLife = g.life;
+    g.gravity = cfg.gravity || 0;
+    g.alpha = 1;
+    g.blendMode = PIXI.BLEND_MODES.ADD;
+    pixiApp.stage.addChild(g);
+    pixiParticles.push(g);
+  }
+}
+
+function updateParticles(delta){
+  for(let i=pixiParticles.length-1;i>=0;i--){
+    const p = pixiParticles[i];
+    p.life -= delta/60;
+    if(p.life <= 0){
+      pixiApp.stage.removeChild(p);
+      p.destroy();
+      pixiParticles.splice(i,1);
+      continue;
+    }
+    p.x += p.vx * delta;
+    p.y += p.vy * delta;
+    p.vy += p.gravity * delta * 0.1;
+    p.alpha = Math.max(0, p.life / p.maxLife);
+    p.scale.set(p.life / p.maxLife);
+  }
+}
+
+function battleParticleBurst(targetEl, type){
+  if(!targetEl) return;
+  const canvas = document.getElementById('particleCanvas');
+  if(!canvas) return;
+  const rect = targetEl.getBoundingClientRect();
+  const canvasRect = canvas.getBoundingClientRect();
+  const x = rect.left + rect.width/2 - canvasRect.left;
+  const y = rect.top + rect.height/2 - canvasRect.top;
+  const count = type==='crit'?50:type==='skill'?60:type==='death'?40:30;
+  spawnPixiParticles(type, x, y, count);
+}
+
+// Init on DOMContentLoaded
+window.addEventListener('DOMContentLoaded', ()=>{
+  setTimeout(initParticleEngine, 500);
+});
+
 Object.assign(window, {
   showScreen, summon, startCampaign, startEndless, toggleAuto, toggleSpeed,
   claimIdle, toggleLang, openHero, closeModal, upgradeHero, upgradeBuilding,
@@ -2686,7 +2809,7 @@ function maybeDropItem(){
     else pool = ITEMS.filter(i => i.rarity==='Common' && i.type!=='consumable');
     if(pool.length===0) pool = ITEMS.filter(i => i.type!=='consumable');
     const drop = pool[Math.floor(Math.random()*pool.length)];
-    if(drop){ addItem(drop.id); sfx('coin'); toast(`💎 ${_(itemData(drop.id).name)}!`,'success',3000) }
+    if(drop){ addItem(drop.id); sfx('coin'); toast(`💎 ${_(itemData(drop.id).name)}!`,'success',3000); if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_item.mp3'; a.volume=0.4; a.play().catch(()=>{}) }catch(e){} } }
   }
   // Consumable drop chance
   if(Math.random() < 0.20){

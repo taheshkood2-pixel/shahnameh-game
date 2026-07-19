@@ -1,7 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 140">
-<defs><linearGradient id="bg" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0%" stop-color="#4a148c"/><stop offset="100%" stop-color="#1a0033"/></linearGradient></defs>
-<rect width="100" height="140" rx="12" fill="url(#bg)" stroke="#9c27b0" stroke-width="2"/>
-<rect x="3" y="3" width="94" height="134" rx="10" fill="none" stroke="#ce93d8" stroke-width="1" opacity="0.3"/>
-<ellipse cx="50" cy="60" rx="30" ry="10" fill="#ce93d8" opacity="0.8"/><rect x="20" y="50" width="60" height="20" rx="10" fill="#ce93d8" opacity="0.6"/><circle cx="50" cy="45" r="8" fill="#9c27b0" opacity="0.8"/>
-<circle cx="88" cy="12" r="4" fill="#ce93d8" opacity="0.6"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+<defs><radialGradient id="hbg" cx="30%" cy="30%"><stop offset="0%" stop-color="#2a0044"/><stop offset="100%" stop-color="#0d0018"/></radialGradient></defs>
+<rect width="200" height="200" rx="20" fill="url(#hbg)" stroke="#9c27b0" stroke-width="2"/>
+<rect x="3" y="3" width="194" height="194" rx="18" fill="none" stroke="#ce93d8" stroke-width="1" opacity="0.25"/>
+<filter id="glow"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<g filter="url(#glow)">
+  <ellipse cx="100" cy="100" rx="50" ry="55" fill="#78909c" stroke="#546e7a" stroke-width="2"/>
+  <path d="M50 100 Q100 70 150 100" fill="#90a4ae" stroke="#546e7a" stroke-width="1.5"/>
+  <rect x="55" y="100" width="90" height="10" rx="3" fill="#546e7a"/>
+  <rect x="90" y="80" width="20" height="25" rx="3" fill="#37474f" opacity="0.6"/>
+  <path d="M80 50 L100 30 L120 50" fill="#ffd700" opacity="0.6"/>
+  <circle cx="100" cy="42" r="5" fill="#ffd700" opacity="0.8"/>
+</g>
 </svg>

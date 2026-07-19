@@ -804,6 +804,7 @@ html[dir=ltr] .cine-skip{left:auto;right:14px}
   <div id="battle" class="screen">
     <div class="combat-log" id="combatLog"></div>
     <div class="battle-scene">
+      <canvas id="particleCanvas" style="position:absolute;inset:0;pointer-events:none;z-index:20"></canvas>
       <div class="combatants-row" id="enemyRow"></div>
       <div class="combatants-row" id="playerRow"></div>
     </div>
@@ -1048,6 +1049,7 @@ html[dir=ltr] .cine-skip{left:auto;right:14px}
 <div id="summonAnim"><div class="beam"></div></div>
 <audio id="voiceAudio" preload="auto"></audio>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
 <script src="data.js"></script>
 <script src="music.js"></script>
 <script src="game.js"></script>

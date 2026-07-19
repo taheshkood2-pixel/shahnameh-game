@@ -1,17 +1,18 @@
-name: Deploy PWA to GitHub Pages
+name: Build APK
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
-# Only deploy Pages — APK build is disabled until manually enabled.
-# To build APK, use workflow-dispatch with the "Build APK" workflow (build-apk-ondemand.yml)
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   deploy-pages:
@@ -21,12 +22,112 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Prepare site
-        run: |
-          mkdir -p _site
-          rsync -av --exclude='.git' --exclude='.github' --exclude='_site' --exclude='*.md' ./ _site/
-      - uses: actions/upload-pages-artifact@v3
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
-      - uses: actions/deploy-pages@v4
+          path: '.'
+      - name: Deploy to GitHub Pages
         id: deployment
+        uses: actions/deploy-pages@v4
+
+  build-apk:
+    needs: deploy-pages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android licenses
+        run: yes | sdkmanager --licenses || true
+
+      - name: Wait for Pages deployment
+        run: sleep 25
+
+      - name: Build APK with Capacitor
+        run: |
+          # Install Capacitor
+          npm init -y
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+          
+          # Create capacitor config
+          cat > capacitor.config.json << 'CEOF'
+          {
+            "appId": "com.shahnameh.game",
+            "appName": "Shahnameh",
+            "webDir": "www",
+            "server": {
+              "androidScheme": "https"
+            }
+          }
+          CEOF
+          
+          # Prepare web files
+          mkdir -p www
+          cp -r index.html data.js game.js music.js sw.js manifest.json www/
+          cp -r assets www/
+          cp -r node_modules/@capacitor www/ 2>/dev/null || true
+          
+          # Add Android platform
+          npx cap add android
+          npx cap sync android
+          
+          # Build debug APK
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+          
+          # Copy APK
+          cp app/build/outputs/apk/debug/app-debug.apk ../shahnameh-v22.apk
+          echo "✅ APK built successfully!"
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shahnameh-game-v22
+          path: shahnameh-v22.apk
+          retention-days: 30
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v22-apk
+          name: "🎮 شاهنامه v22 APK"
+          body: |
+            ## 🏛 Shahnameh: Rise of Kings v22
+            
+            ### ✅ Features
+            - 26 heroes (SSR/SR/R) with 5 classes
+            - 24 enemies across 7 chapters
+            - 378 items with unique art
+            - 68 voice files (Persian narration)
+            - PixiJS particle effects
+            - Cinematic intro with voice
+            - Prestige system (10 levels)
+            - 100+ hours gameplay
+            
+            ### 📱 Install
+            1. Download APK below
+            2. Enable "Install from unknown sources"
+            3. Install and play!
+            
+            ### 🌐 Also play online
+            https://taheshkood2-pixel.github.io/shahnameh-game/
+          files: shahnameh-v22.apk
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

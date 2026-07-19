@@ -663,6 +663,54 @@ html[dir=ltr] .cine-skip{left:auto;right:14px}
 .quest-row{min-height:56px}
 .ach-row{min-height:52px}
 
+
+/* ===== BATTLE SPRITE ANIMATIONS v20 ===== */
+@keyframes idleBreath{
+  0%,100%{transform:scaleY(1) translateY(0)}
+  50%{transform:scaleY(1.02) translateY(-2px)}
+}
+@keyframes attackWindup{
+  0%{transform:translateX(0) scale(1)}
+  20%{transform:translateX(-8px) scale(0.95)}
+  50%{transform:translateX(20px) scale(1.05)}
+  100%{transform:translateX(0) scale(1)}
+}
+@keyframes attackWindupR{
+  0%{transform:translateX(0) scaleX(-1) scale(1)}
+  20%{transform:translateX(8px) scaleX(-1) scale(0.95)}
+  50%{transform:translateX(-20px) scaleX(-1) scale(1.05)}
+  100%{transform:translateX(0) scaleX(-1) scale(1)}
+}
+@keyframes deathFade{
+  0%{opacity:1;filter:none;transform:scale(1)}
+  30%{filter:brightness(2) saturate(0)}
+  100%{opacity:0.15;filter:grayscale(1) brightness(0.5);transform:scale(0.8) translateY(10px)}
+}
+.combatant img{animation:idleBreath 3s ease-in-out infinite}
+.combatant.attacking img{animation:attackWindup 0.5s ease-out!important}
+.combatant.enemy.attacking img{animation:attackWindupR 0.5s ease-out!important}
+.combatant.dead img{animation:deathFade 0.8s ease-out forwards!important}
+
+/* ===== ADVANCED PARTICLE SYSTEM v20 ===== */
+@keyframes particleFire{
+  0%{transform:translate(0,0) scale(1);opacity:1}
+  50%{transform:translate(var(--dx),calc(var(--dy) - 30px)) scale(0.6);opacity:0.8}
+  100%{transform:translate(calc(var(--dx)*1.5),calc(var(--dy) - 60px)) scale(0);opacity:0}
+}
+@keyframes particleSpark{
+  0%{transform:translate(0,0) scale(1);opacity:1}
+  100%{transform:translate(var(--dx),var(--dy)) scale(0);opacity:0}
+}
+@keyframes particleHeal{
+  0%{transform:translate(0,0) scale(0.5);opacity:0}
+  30%{opacity:1}
+  100%{transform:translate(var(--dx),calc(var(--dy) - 40px)) scale(0);opacity:0}
+}
+@keyframes particleMagic{
+  0%{transform:rotate(0deg) translate(0,0) scale(1);opacity:1}
+  100%{transform:rotate(360deg) translate(var(--dx),var(--dy)) scale(0);opacity:0}
+}
+
 /* ===== LEGENDARY ITEM GLOW ===== */
 @keyframes legGlow{0%,100%{box-shadow:0 0 8px var(--leg)}50%{box-shadow:0 0 20px var(--leg),0 0 40px #ff8c0044}}
 

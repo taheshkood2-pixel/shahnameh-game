@@ -626,6 +626,7 @@ function startBattle(stage, mode){
   if(state.settings.music){ playMusic(stage.boss?'boss':'battle'); currentMusicTrack = stage.boss?'boss':'battle' }
   state.stats.battles++; state.stats.d_battles++; state.stats.w_battles++;
   if(stage.boss && enemyBase.voice){ setTimeout(()=>playVoice(enemyBase.voice), 500) }
+  if(stage.boss && state.settings.sound){ setTimeout(()=>{ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_boss.mp3'; a.play().catch(()=>{}) }catch(e){} }, 200) }
   if(state.settings.autoBattle) setTimeout(battleTick, 800/state.settings.battleSpeed);
 }
 
@@ -683,24 +684,49 @@ function dmgPopup(sel, amt, crit){
   if(crit) p.style.color = '#ffd700';
   el.appendChild(p);
   setTimeout(()=>p.remove(), 1000);
-  if(state.settings.particleEffects) spawnParticles(el, crit?'#ffd700':'#ff4444');
+  if(state.settings.particleEffects) spawnParticles(el, crit?'#ffd700':'#ff4444', crit?'crit':'spark');
   // Screen shake on crits and boss hits
   if(crit && state.settings.particleEffects){
     const scene = document.querySelector('.battle-scene');
     if(scene){ scene.style.animation='none'; void scene.offsetWidth; scene.style.animation='screenShake 0.3s' }
   }
 }
-function spawnParticles(el, color){
-  for(let i=0;i<6;i++){
+function spawnParticles(el, color, type='spark'){
+  if(!el) return;
+  const count = type==='crit'?15:type==='skill'?20:8;
+  for(let i=0;i<count;i++){
     const p = document.createElement('div');
-    p.className='particle'; p.style.background = color;
+    const size = 3 + Math.random()*5;
+    p.style.cssText = `position:absolute;width:${size}px;height:${size}px;border-radius:50%;pointer-events:none;z-index:5;`;
     p.style.left = (Math.random()*80+10)+'%';
     p.style.top = (Math.random()*60+20)+'%';
     const a = Math.random()*Math.PI*2;
-    p.style.setProperty('--dx', Math.cos(a)*40+'px');
-    p.style.setProperty('--dy', Math.sin(a)*40+'px');
+    const d = 30 + Math.random()*50;
+    p.style.setProperty('--dx', Math.cos(a)*d+'px');
+    p.style.setProperty('--dy', Math.sin(a)*d+'px');
+    
+    if(type==='crit'){
+      p.style.background = ['#ffd700','#ff8c00','#fff','#ff4444'][Math.floor(Math.random()*4)];
+      p.style.animation = `particleSpark ${0.5+Math.random()*0.5}s ease-out forwards`;
+      p.style.boxShadow = '0 0 4px '+p.style.background;
+    } else if(type==='skill'){
+      p.style.background = ['#ffd700','#ff8c00','#f5c542','#fff'][Math.floor(Math.random()*4)];
+      p.style.animation = `particleMagic ${0.7+Math.random()*0.5}s ease-out forwards`;
+      p.style.boxShadow = '0 0 6px #ffd700';
+    } else if(type==='heal'){
+      p.style.background = '#4caf50';
+      p.style.animation = `particleHeal ${0.8+Math.random()*0.4}s ease-out forwards`;
+      p.style.boxShadow = '0 0 4px #4caf50';
+    } else if(type==='fire'){
+      p.style.background = ['#ff4400','#ff6600','#ffaa00','#ff8800'][Math.floor(Math.random()*4)];
+      p.style.animation = `particleFire ${0.6+Math.random()*0.6}s ease-out forwards`;
+      p.style.boxShadow = '0 0 3px #ff4400';
+    } else {
+      p.style.background = color;
+      p.style.animation = `particleSpark ${0.5+Math.random()*0.3}s ease-out forwards`;
+    }
     el.appendChild(p);
-    setTimeout(()=>p.remove(),700);
+    setTimeout(()=>p.remove(), 1200);
   }
 }
 function logBattle(msg){
@@ -871,6 +897,7 @@ function battleTick(){
       });
       logBattle('💚 '+attacker.name+' — '+_({fa:'شفای تیمی!',en:'Team Heal!'}));
       sfx('heal');
+      if(state.settings.particleEffects){ battle.players.forEach((p,i)=>{ const el=document.querySelector('#p'+i); if(el&&p.alive) spawnParticles(el,'#4caf50','heal') }) }
     }
     // Default for any other class
     else {
@@ -879,6 +906,8 @@ function battleTick(){
       state.stats.totalDmg += bonusDmg;
       setTimeout(()=>dmgPopup(tgtSel, '✦'+bonusDmg, true), 200);
       logBattle('✨ '+attacker.name+' — '+_({fa:'مهارت ویژه!',en:'Special Skill!'}));
+      if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_skill.mp3'; a.volume=0.4; a.play().catch(()=>{}) }catch(e){} }
+      if(state.settings.particleEffects) spawnParticles(atkEl, '#ffd700', 'skill');
     }
   }
   // Enemy skills: just bonus damage
@@ -891,6 +920,14 @@ function battleTick(){
   }
   dmgPopup(tgtSel, dmg, crit);
   sfx(crit?'crit':'hit');
+  // Real voice SFX
+  if(state.settings.sound){
+    try{
+      const va = document.getElementById('voiceAudio');
+      if(crit){ va.src='assets/audio/sfx_crit.mp3'; va.play().catch(()=>{}) }
+      else if(Math.random()<0.15){ va.src='assets/audio/sfx_attack.mp3'; va.volume=0.4; va.play().catch(()=>{}) }
+    }catch(e){}
+  }
   // Flash screen red on big hits
   if(dmg > attacker.atk * 1.5 && state.settings.particleEffects){
     const flash = document.createElement('div');
@@ -982,6 +1019,17 @@ function endBattle(win){
     if(battle.mode==='campaign'){
       state.progress.stage++;
       const ch = chapterData(state.progress.chapter);
+      // Show inter-stage story narration
+      const storyKey = 'inter_'+state.progress.chapter+'_'+state.progress.stage;
+      if(!state.progress.storyRead[storyKey]){
+        const interStories = {1:[{fa:'کاوه درفش را بالا برد. مردم پشت سرش رفتند.',en:'Kaveh raised the banner.'},{fa:'قیام آغاز شد.',en:'The revolt began.'}],2:[{fa:'رستم به راه افتاد.',en:'Rostam set forth.'}],3:[],4:[],5:[],6:[],7:[]};
+        const stories = interStories[state.progress.chapter] || [];
+        if(stories.length > 0){
+          const idx = (state.progress.stage-1) % stories.length;
+          state.progress.storyRead[storyKey] = true;
+          setTimeout(()=>toast(stories[idx][state.lang]||stories[idx].fa,'info',3000),1000);
+        }
+      }
       if(state.progress.stage >= ch.stages.length){
         state.stats['ch'+state.progress.chapter] = 1;
         setTimeout(()=>{
@@ -1046,6 +1094,7 @@ function checkLevelUp(id){
     state.stats.maxLevel = Math.max(state.stats.maxLevel, s.level);
     toast(`⬆ ${_(heroData(id).name)} → Lv.${s.level}`,'success');
     sfx('levelup'); playVoice('level_up');
+    if(state.settings.sound){ try{ const a=document.getElementById('voiceAudio'); a.src='assets/audio/sfx_levelup.mp3'; a.volume=0.5; a.play().catch(()=>{}) }catch(e){} }
   }
 }
 function upgradeHero(id){
@@ -1594,11 +1643,24 @@ function renderHeroDetail(){
     // Build equipped item overlays for hero portrait
     let equipOverlays = '';
     const heroEq = (state.heroes[id] && state.heroes[id].equipment) ? state.heroes[id].equipment : {};
+    const eqPositions = {
+      weapon: 'top:15%;right:-5%;width:44px;height:44px',
+      helm: 'top:-5%;left:50%;transform:translateX(-50%);width:40px;height:40px',
+      armor: 'top:40%;left:-5%;width:42px;height:42px',
+      boots: 'bottom:5%;right:10%;width:38px;height:38px',
+      ring: 'bottom:15%;left:-5%;width:34px;height:34px',
+      necklace: 'top:25%;left:50%;transform:translateX(-50%);width:36px;height:36px',
+      belt: 'bottom:25%;right:-3%;width:36px;height:36px',
+    };
     ['weapon','helm','armor','boots','ring','necklace','belt'].forEach(slot => {
       if(heroEq[slot]){
         const invItem = state.inventory.find(x=>x.uid===heroEq[slot]);
         if(invItem){
-          equipOverlays += `<img src="${assetPath('item',invItem.id)}" class="hero-equip-overlay hero-equip-${slot}" title="${_(itemData(invItem.id).name)}">`;
+          const it = itemData(invItem.id);
+          const rarity = it ? it.rarity : 'Common';
+          const borderColor = rarity==='Legendary'?'var(--ssr)':rarity==='Epic'?'var(--sr)':rarity==='Rare'?'var(--r)':'var(--muted)';
+          const pos = eqPositions[slot] || '';
+          equipOverlays += `<img src="${assetPath('item',invItem.id)}" style="position:absolute;${pos};border-radius:50%;border:2px solid ${borderColor};object-fit:cover;background:#000;box-shadow:0 0 8px ${borderColor}44;z-index:2" title="${_(it.name)}">`;
         }
       }
     });

@@ -51,24 +51,31 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          api-level: 33
+          build-tools: 33.0.2
 
       - name: Accept Android licenses
-        run: yes | sdkmanager --licenses || true
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
 
       - name: Wait for Pages deployment
         run: sleep 25
 
       - name: Build APK with Capacitor
         run: |
-          # Install Capacitor
+          set -e
+          
+          echo "📦 Installing Capacitor..."
           npm init -y
           npm install @capacitor/core @capacitor/cli @capacitor/android
           
-          # Create capacitor config
+          echo "⚙️ Creating capacitor config..."
           cat > capacitor.config.json << 'CEOF'
           {
             "appId": "com.shahnameh.game",
-            "appName": "Shahnameh",
+            "appName": "شاهنامه",
             "webDir": "www",
             "server": {
               "androidScheme": "https"
@@ -76,26 +83,55 @@ jobs:
           }
           CEOF
           
-          # Prepare web files
+          echo "📁 Preparing web files..."
           mkdir -p www
-          cp -r index.html data.js game.js music.js sw.js manifest.json www/
-          cp -r assets www/
-          cp -r node_modules/@capacitor www/ 2>/dev/null || true
+          ls -la
           
-          # Add Android platform
-          npx cap add android
-          npx cap sync android
+          # Copy all web files
+          cp index.html data.js game.js music.js sw.js manifest.json www/ || echo "Warning: Some JS files missing"
+          cp -r assets www/ || echo "Warning: assets folder missing"
           
-          # Build debug APK
+          echo "📂 Files in www:"
+          ls -la www/
+          
+          echo "🔧 Adding Android platform..."
+          npx cap add android || {
+            echo "❌ Failed to add Android platform"
+            exit 1
+          }
+          
+          echo "🔄 Syncing Capacitor..."
+          npx cap sync android || {
+            echo "❌ Failed to sync"
+            exit 1
+          }
+          
+          echo "🏗️ Building APK..."
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
           
-          # Copy APK
-          cp app/build/outputs/apk/debug/app-debug.apk ../shahnameh-v22.apk
+          # Build with more memory and verbose output
+          export GRADLE_OPTS="-Xmx2048m"
+          ./gradlew assembleDebug --no-daemon --stacktrace --info 2>&1 | tee build.log
+          
+          if [ $? -ne 0 ]; then
+            echo "❌ Build failed! Last 50 lines:"
+            tail -50 build.log
+            exit 1
+          fi
+          
+          echo "📋 Copying APK..."
+          cp app/build/outputs/apk/debug/app-debug.apk ../shahnameh-v22.apk || {
+            echo "❌ APK not found at expected location"
+            find . -name "*.apk" -type f
+            exit 1
+          }
+          
           echo "✅ APK built successfully!"
+          ls -lh ../shahnameh-v22.apk
 
       - name: Upload APK Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: shahnameh-game-v22
@@ -103,6 +139,7 @@ jobs:
           retention-days: 30
 
       - name: Create GitHub Release
+        if: success()
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v22-apk

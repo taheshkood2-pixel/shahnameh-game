@@ -57,15 +57,33 @@ function load(){
       state = deepMerge(JSON.parse(JSON.stringify(DEFAULT_STATE)), parsed);
     }
   }catch(e){ console.warn('Load failed', e) }
-  if(!state.heroes.kaveh) state.heroes.kaveh = {level:1,owned:true,exp:0,equipment:{armor:'old_cloth_start'},talents:{},talentPoints:0};
-  // Default old cloth for all heroes
+  if(!state.heroes.kaveh) {
+    const kavehArmor = addItem('old_cloth_start');
+    state.heroes.kaveh = {level:1,owned:true,exp:0,equipment:{armor:kavehArmor},talents:{},talentPoints:0};
+  }
+  // Default starting equipment for all heroes without gear
   for(const hid in state.heroes){
     const h = state.heroes[hid];
-    if(h.owned && (!h.equipment || !h.equipment.armor)){
+    if(h.owned){
       if(!h.equipment) h.equipment = {};
-      h.equipment.armor = 'old_cloth_start';
-      if(!state.inventory.find(i=>i.id==='old_cloth_start')){
-        state.inventory.push({id:'old_cloth_start',uid:'default_armor',rarity:'Common'});
+      // Ensure armor
+      if(!h.equipment.armor){
+        const armorUid = addItem('old_cloth_start');
+        if(armorUid) h.equipment.armor = armorUid;
+      }
+      // Verify equipment UIDs still valid
+      for(const slot in h.equipment){
+        const uid = h.equipment[slot];
+        if(uid && typeof uid === 'string' && !state.inventory.find(x=>x.uid===uid)){
+          // String ID instead of UID - convert
+          const it = itemData(uid);
+          if(it){
+            const newUid = addItem(uid);
+            h.equipment[slot] = newUid;
+          } else {
+            delete h.equipment[slot];
+          }
+        }
       }
     }
   }
@@ -77,7 +95,7 @@ function load(){
   if(state.team.length===0) state.team = ['kaveh'];
   BUILDINGS.forEach(b=>{ if(!state.buildings[b.id]) state.buildings[b.id]=1 });
   if(state.inventory.length===0){
-    ['sword_bronze','helm_leather','armor_leather','boots_leather'].forEach(id=>addItem(id));
+    ['sword_bronze','helm_leather','armor_leather','boots_leather','ring_00'].forEach(id=>{if(itemData(id))addItem(id)});
   }
   UID = state.inventory.reduce((m,x)=>Math.max(m,x.uid||0),0) + 1;
 }
@@ -186,7 +204,7 @@ function heroStats(id){
     const inv = state.inventory.find(x=>x.uid===uid); if(!inv) continue;
     const it = itemData(inv.id); if(!it) continue;
     let itemAtk = it.atk||0; let itemHp = it.hp||0; let itemDef = it.def||0; let itemSpd = it.spd||0; let itemCrit = it.crit||0;
-    if(it.hero === id){ itemAtk = Math.floor(itemAtk*1.2); itemHp = Math.floor(itemHp*1.2) }
+    if(it.hero === id){ itemAtk = Math.floor(itemAtk*1.2); itemHp = Math.floor(itemHp*1.2); itemDef = Math.floor(itemDef*1.2); itemSpd = Math.floor(itemSpd*1.2); itemCrit = Math.floor(itemCrit*1.2) }
     hp += itemHp; atk += itemAtk; def += itemDef; spd += itemSpd; crit += itemCrit;
   }
   // Talents
@@ -326,11 +344,12 @@ function summon(type){
         checkLevelUp(h.id);
         results.push({hero:h, dupe:true, gold:dupeGold, forced});
       } else {
-        state.heroes[h.id] = {level:1, owned:true, exp:0, equipment:{armor:'old_cloth_start'}, talents:{}, talentPoints:1};
-        // Ensure default clothing is in inventory for new heroes
-        if(!state.inventory.find(i=>i.id==='old_cloth_start')){
-          state.inventory.push({id:'old_cloth_start',uid:'default_armor_new',rarity:'Common'});
-        }
+        // Give new hero some starting equipment
+        const startItems = ['sword_bronze','helm_leather','boots_leather'];
+        const startUids = {};
+        startItems.forEach(sid=>{ if(itemData(sid)) startUids[sid] = addItem(sid); });
+        const startArmorUid = (() => { const aid = 'old_cloth_start'; if(!state.inventory.find(i=>i.id===aid)) return addItem(aid); const found = state.inventory.find(i=>i.id===aid && !Object.values(state.heroes).some(h=>h.equipment && Object.values(h.equipment).includes(i.uid))); return found ? found.uid : addItem(aid); })();
+        state.heroes[h.id] = {level:1, owned:true, exp:0, equipment:{armor:startArmorUid, weapon:startUids['sword_bronze'], helm:startUids['helm_leather'], boots:startUids['boots_leather']}, talents:{}, talentPoints:1};
         state.stats.heroCount = Object.values(state.heroes).filter(x=>x.owned).length;
         if(h.rarity==='SSR') state.stats.ssrCount++;
         if(h.id==='rostam') state.stats.hasRostam = 1;
@@ -392,7 +411,7 @@ function startEndless(){
   const tier = Math.min(6, Math.floor(eStage/8)+1);
   const enemyPool = ENEMIES.filter(e=>e.tier===tier);
   const enemy = enemyPool[eStage % enemyPool.length];
-  const scale = 1 + eStage * BALANCE.endlessScalePerStage;
+  const scale = 1 + eStage * 0.15; // Smoother scaling
   const stage = {
     enemy: enemy.id,
     reward: {
@@ -506,7 +525,7 @@ function startBattle(stage, mode){
   });
   const enemyBase = enemyData(stage.enemy);
   const waves = stage.wave || 1;
-  const scale = stage.endlessScale || (1 + (state.progress.chapter-1)*0.25);
+  const scale = stage.endlessScale || (1 + (state.progress.chapter-1)*0.18); // Gentler campaign scaling
   const enemies = [];
   for(let w=0; w<waves; w++){
     const bossMult = stage.boss ? 2.2 : 1;
@@ -519,7 +538,11 @@ function startBattle(stage, mode){
       spd:enemyBase.spd, crit:10, alive:true, effects:[],
       isBoss:!!stage.boss, voice:enemyBase.voice});
   }
-  battle = {players, enemies, stage, mode, over:false, turn:0, log:[]};
+  battle = {players, enemies, stage, mode, over:false, turn:0, log:[], petTurns:{}};
+  // Apply pet first-turn burst (Rakhsh)
+  if(state.activePets.includes('rakhsh')){
+    battle.petFirstBurst = true;
+  }
   showScreen('battle');
   renderBattleScene();
   logBattle('⚔ ' + _(D.battle_start) + ' — ' + enemies[0].name);
@@ -615,7 +638,7 @@ function buildTurnQueue(){
 }
 
 function battleTick(){
-  if(!battle || battle.over) return;
+  if(!battle || battle.over || battlePaused) return;
   if(turnQueue.length===0) buildTurnQueue();
   const turn = turnQueue.shift();
   if(!turn || !turn.unit.alive){
@@ -628,10 +651,42 @@ function battleTick(){
   const target = Math.random()<0.3
     ? targets.sort((a,b)=>a.hp-b.hp)[0]
     : targets[Math.floor(Math.random()*targets.length)];
+  // Pet abilities
+  if(turn.side==='p' && state.activePets.length > 0){
+    // Simorgh: heal every 5 turns
+    if(state.activePets.includes('simorgh')){
+      const sLv = (state.pets.simorgh?.level)||1;
+      const healPct = 0.20 + (sLv-1)*0.02;
+      if(!battle.petTurns.simorgh) battle.petTurns.simorgh = 0;
+      battle.petTurns.simorgh++;
+      if(battle.petTurns.simorgh >= 5){
+        battle.petTurns.simorgh = 0;
+        battle.players.forEach(p=>{
+          if(p.alive){ const healAmt = Math.floor(p.maxHp * healPct); p.hp = Math.min(p.maxHp, p.hp + healAmt); }
+        });
+        logBattle('🐦 سیمرغ — '+_({fa:'درمان تیم!',en:'Team heal!'}));
+        sfx('heal');
+      }
+    }
+    // Homa: regen each turn
+    if(state.activePets.includes('homa')){
+      const hLv = (state.pets.homa?.level)||1;
+      const regenPct = 0.03 + (hLv-1)*0.005;
+      battle.players.forEach(p=>{
+        if(p.alive){ p.hp = Math.min(p.maxHp, p.hp + Math.floor(p.maxHp * regenPct)); }
+      });
+    }
+  }
   const crit = Math.random() < (attacker.crit/100);
   if(crit) state.stats.crits++;
   const variance = BALANCE.varianceMin + Math.random()*(BALANCE.varianceMax-BALANCE.varianceMin);
   let dmg = Math.max(1, Math.floor((attacker.atk*(crit?BALANCE.critMult:1) - target.def*BALANCE.defenseFactor) * variance));
+  // Rakhsh first-turn double attack
+  if(turn.side==='p' && battle.petFirstBurst && state.activePets.includes('rakhsh')){
+    dmg = Math.floor(dmg * 1.5);
+    battle.petFirstBurst = false;
+    logBattle('🐎 رخش — '+_({fa:'حمله دوبرابر!',en:'Double strike!'}));
+  }
   target.hp -= dmg;
   state.stats.totalDmg += dmg;
   const atkSel = turn.side==='p'?'#p'+turn.idx:'#e'+turn.idx;
@@ -665,7 +720,7 @@ function battleTick(){
   updateHPBars();
   if(battle.enemies.every(e=>!e.alive)){ return endBattle(true) }
   if(battle.players.every(p=>!p.alive)){ return endBattle(false) }
-  if(state.settings.autoBattle) setTimeout(battleTick, 600/state.settings.battleSpeed);
+  if(state.settings.autoBattle && !battlePaused) setTimeout(battleTick, Math.max(200, 700/state.settings.battleSpeed));
 }
 
 function endBattle(win){
@@ -691,37 +746,42 @@ function endBattle(win){
       checkLevelUp(id);
     });
     if(state.settings.music){ playMusic('victory') }
-    logBattle('🏆 ' + _(D.victory) + `  +${r.gold||0}💰 +${r.gems||0}💎` + (r.item?` +${_(itemData(r.item).name)}`:''));
+    logBattle('🏆 ' + _(D.victory));
+    setTimeout(()=>toast(`+${r.gold||0}💰 +${r.gems||0}💎 +${r.exp||0}XP` + (r.item?` +${_(itemData(r.item).name)}`:''),'success',3500),500);
     if(battle.mode==='campaign'){
       state.progress.stage++;
       const ch = chapterData(state.progress.chapter);
       if(state.progress.stage >= ch.stages.length){
         state.stats['ch'+state.progress.chapter] = 1;
-        setTimeout(()=>showStory(ch,'outro',()=>{
-          state.progress.chapter++;
-          state.progress.stage = 0;
-          save(); showScreen('home');
-        }), 1500);
+        setTimeout(()=>{
+          if(ch.outro) showStory(ch,'outro',()=>{
+            state.progress.chapter++;
+            state.progress.stage = 0;
+            save(); refreshUI(); showScreen('home');
+          });
+          else { state.progress.chapter++; state.progress.stage = 0; save(); showScreen('home') }
+        }, 1500);
       } else {
-        save();
-        setTimeout(()=>{ if(state.settings.autoBattle) startCampaign(); else showScreen('home') }, 1500);
+        save(); refreshUI();
+        setTimeout(()=>{ if(state.settings.autoBattle) startCampaign(); else { showScreen('home'); toast('🏆 '+ _(D.victory)+' — Return to continue','success',3000) } }, 2000);
       }
     } else if(battle.mode==='endless'){
       state.endlessStage++;
       if(state.endlessStage > state.endlessMax) state.endlessMax = state.endlessStage;
       state.stats.endlessMax = state.endlessMax;
-      save();
-      setTimeout(()=>{ if(state.settings.autoBattle) startEndless(); else showScreen('home') }, 1500);
+      save(); refreshUI();
+      setTimeout(()=>{ if(state.settings.autoBattle) startEndless(); else { showScreen('home'); toast('♾ Stage '+state.endlessStage+' cleared!','success',3000) } }, 2000);
     }
   } else {
     state.stats.losses++;
     logBattle('💀 ' + _(D.defeat));
     save();
-    setTimeout(()=>showScreen('home'), 2000);
+    setTimeout(()=>{ showScreen('home'); toast('💀 '+_(D.defeat)+' — Upgrade your heroes!','error',3000) }, 2500);
   }
   state.stats.goldMax = Math.max(state.stats.goldMax, state.gold);
   state.stats.gemsMax = Math.max(state.stats.gemsMax, state.gems);
   checkAchievements(); checkQuests();
+  refreshUI();
 }
 
 function toggleAuto(){
@@ -1011,7 +1071,7 @@ function updateIdle(){
   const cap = state.goldRate * BALANCE.idleCapHours;
   const earned = Math.min(cap, Math.floor(diff * state.goldRate));
   const el = document.getElementById('idleGold'); if(el) el.textContent = formatNum(earned) + ' 💰';
-  const rateEl = document.getElementById('goldRate'); if(rateEl) rateEl.textContent = formatNum(state.goldRate) + ' 💰/h';
+  const rateEl = document.getElementById('goldRate'); if(rateEl) rateEl.textContent = formatNum(Math.floor(state.goldRate)) + ' 💰/h';
   const tpEl = document.getElementById('teamPower'); if(tpEl) tpEl.textContent = formatNum(teamPower());
   return earned;
 }
@@ -1710,6 +1770,9 @@ const D = {
   type_armor:{fa:'زره',en:'Armor'},
   type_boots:{fa:'چکمه',en:'Boots'},
   type_ring:{fa:'انگشتر',en:'Ring'},
+  type_necklace:{fa:'گردنبند',en:'Necklace'},
+  type_belt:{fa:'کمربند',en:'Belt'},
+  type_consumable:{fa:'مصرفی',en:'Consumable'},
   equip_to:{fa:'اعزام به:',en:'Equip to:'},
   pick_item:{fa:'یک آیتم انتخاب کن',en:'Pick an item'},
   no_items:{fa:'آیتمی برای این جایگاه نداری',en:'No items for this slot'},
@@ -1928,7 +1991,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
     const el = document.getElementById('gold'); if(el) el.textContent = formatNum(Math.floor(state.gold));
     state.stats.playTime++;
     state.stats.goldMax = Math.max(state.stats.goldMax, state.gold);
-    if(state.stats.playTime%30===0){
+    if(state.stats.playTime%10===0){
       regenEnergy();
       const ec = document.getElementById('energyCount'); if(ec) ec.textContent = state.summonEnergy;
       const et = document.getElementById('energyTimer');
@@ -1941,6 +2004,10 @@ window.addEventListener('DOMContentLoaded', ()=>{
   // start ambient music
   setTimeout(()=>{ if(state.settings.music) playMusic('menu') }, 1200);
 
+  // First time: give bonus starting items
+  if(!state.onboardingDone && state.stats.battles === 0){
+    ['potion_hp_small','potion_hp_small','ring_bronze','necklace_00'].forEach(id => { if(itemData(id)) addItem(id) });
+  }
   if(!state.onboardingDone){
     setTimeout(()=>playIntroCinematic(()=>{
       state.onboardingDone = true;
@@ -1952,48 +2019,80 @@ window.addEventListener('DOMContentLoaded', ()=>{
   if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 });
 
+
+// ---------------- PAUSE ----------------
+let battlePaused = false;
+function togglePause(){
+  battlePaused = !battlePaused;
+  const btn = document.getElementById('pauseBtn');
+  if(btn) btn.classList.toggle('on', battlePaused);
+  if(!battlePaused && battle && !battle.over && state.settings.autoBattle) battleTick();
+  sfx('click');
+}
+
 Object.assign(window, {
   showScreen, summon, startCampaign, startEndless, toggleAuto, toggleSpeed,
   claimIdle, toggleLang, openHero, closeModal, upgradeHero, upgradeBuilding,
   toggleDeploy, filterInv, switchTab, claimQuest, claimAchievement,
   togglePet, upgradePet, openMinigame, closeMini, forgeHit, toggleSetting,
   exportSave, importSave, resetGame, upgradeTalent, resetTalents, switchHeroTab,
-  openEquipPicker, unequipItem, nextCinematicScene, skipCinematic, tutorialNext, tutorialSkip, playMusic, stopMusic, toggleMusicSetting, startTutorial,
+  openEquipPicker, unequipItem, nextCinematicScene, skipCinematic, tutorialNext, tutorialSkip, playMusic, stopMusic, toggleMusicSetting, startTutorial, togglePause, useConsumable,
 });
 
 // ---------------- ENEMY ITEM DROP CHANCE & CONSUMABLE USE ----------------
 // Small chance for any enemy to drop a random item after battle
 function maybeDropItem(){
-  if(Math.random() < 0.03){ // 3% base drop chance
-    const pool = ITEMS.filter(i => i.type !== 'consumable');
+  const isBoss = battle && battle.stage && battle.stage.boss;
+  const dropChance = isBoss ? 0.35 : 0.12; // 35% boss, 12% normal
+  if(Math.random() < dropChance){
+    // Weighted drop: more likely to get lower rarity
+    const r = Math.random();
+    let pool;
+    if(r < 0.01) pool = ITEMS.filter(i => i.rarity==='Legendary' && i.type!=='consumable');
+    else if(r < 0.08) pool = ITEMS.filter(i => i.rarity==='Epic' && i.type!=='consumable');
+    else if(r < 0.35) pool = ITEMS.filter(i => i.rarity==='Rare' && i.type!=='consumable');
+    else pool = ITEMS.filter(i => i.rarity==='Common' && i.type!=='consumable');
+    if(pool.length===0) pool = ITEMS.filter(i => i.type!=='consumable');
     const drop = pool[Math.floor(Math.random()*pool.length)];
     if(drop){ addItem(drop.id); sfx('coin'); toast(`💎 ${_(itemData(drop.id).name)}!`,'success',3000) }
   }
-  // Bonus: very rare Legendary drop (0.5%)
-  if(Math.random() < 0.005){
-    const leg = ITEMS.filter(i => i.rarity==='Legendary');
-    if(leg.length){ addItem(leg[Math.floor(Math.random()*leg.length)].id); sfx('fanfare'); toast('🌟 LEGENDARY DROP!','success',4000) }
+  // Consumable drop chance
+  if(Math.random() < 0.20){
+    const pots = ITEMS.filter(i => i.type==='consumable' && i.id.includes('small'));
+    if(pots.length){ const p = pots[Math.floor(Math.random()*pots.length)]; addItem(p.id); toast(`🧪 ${_(itemData(p.id).name)}`,'success',2000) }
+  }
+  // Bonus: boss guaranteed rare+ drop
+  if(isBoss && Math.random() < 0.5){
+    const rarePool = ITEMS.filter(i => (i.rarity==='Rare'||i.rarity==='Epic') && i.type!=='consumable');
+    if(rarePool.length){ const drop = rarePool[Math.floor(Math.random()*rarePool.length)]; addItem(drop.id); sfx('fanfare'); toast(`⭐ ${_(itemData(drop.id).name)}!`,'success',3000) }
   }
 }
 
 function useConsumable(invUid){
   const inv = state.inventory.find(x=>x.uid===invUid); if(!inv) return;
   const it = itemData(inv.id); if(!it || it.type!=='consumable') return;
-  const heroId = currentHeroId || state.team[0];
+  const heroId = currentHeroId || (state.team.length ? state.team[0] : null);
+  if(!heroId){ toast(_({fa:'پهلوانی انتخاب کن','en':'Select a hero'}),'error'); return }
   const hero = state.heroes[heroId]; if(!hero) return;
   if(it.effect==='heal'){
     const stats = heroStats(heroId);
-    if(stats) hero.hp = Math.min(stats.hp, hero.hp + (stats.hp*0.3)); // heal 30% max hp
+    const healAmt = it.value || 50;
+    toast(`💚 ${_(it.name)}: +${healAmt} HP`,'success');
     sfx('heal'); haptic(30);
-    toast(`💚 ${_(it.name)}: +${Math.floor(stats?stats.hp*0.3:50)} HP`,'success');
   } else if(it.effect==='energy'){
-    state.summonEnergy = Math.min(BALANCE.summonEnergyMax, state.summonEnergy+1);
+    state.summonEnergy = Math.min(BALANCE.summonEnergyMax, state.summonEnergy + (it.value||1));
     toast(`⚡ ${_(it.name)}!`,'success');
   } else if(it.effect==='revive'){
-    // Revive logic would apply in battle - basic version
-    toast(`💫 ${_(it.name)}!`,'success');
+    toast(`💫 ${_(it.name)} — ${_(heroData(heroId).name)}`,'success');
+    sfx('heal');
   }
   // Remove consumable from inventory
   state.inventory = state.inventory.filter(x=>x.uid!==invUid);
+  // Unequip from any hero if it was assigned
+  for(const hid in state.heroes){
+    const eq = state.heroes[hid].equipment||{};
+    for(const s in eq){ if(eq[s]===invUid) delete eq[s] }
+  }
   save(); refreshUI();
+  if(document.getElementById('itemModal').classList.contains('show')) closeModal('itemModal');
 }

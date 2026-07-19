@@ -57,7 +57,18 @@ function load(){
       state = deepMerge(JSON.parse(JSON.stringify(DEFAULT_STATE)), parsed);
     }
   }catch(e){ console.warn('Load failed', e) }
-  if(!state.heroes.kaveh) state.heroes.kaveh = {level:1,owned:true,exp:0,equipment:{},talents:{},talentPoints:0};
+  if(!state.heroes.kaveh) state.heroes.kaveh = {level:1,owned:true,exp:0,equipment:{armor:'old_cloth_start'},talents:{},talentPoints:0};
+  // Default old cloth for all heroes
+  for(const hid in state.heroes){
+    const h = state.heroes[hid];
+    if(h.owned && (!h.equipment || !h.equipment.armor)){
+      if(!h.equipment) h.equipment = {};
+      h.equipment.armor = 'old_cloth_start';
+      if(!state.inventory.find(i=>i.id==='old_cloth_start')){
+        state.inventory.push({id:'old_cloth_start',uid:'default_armor',rarity:'Common'});
+      }
+    }
+  }
   // ensure talents/talentPoints exist on all owned heroes
   for(const hid in state.heroes){
     if(!state.heroes[hid].talents) state.heroes[hid].talents = {};
@@ -231,7 +242,7 @@ function equipItem(heroId, uid){
   state.heroes[heroId].equipment[it.type] = uid;
   state.stats.equips++; state.stats.d_equips++;
   const eq = state.heroes[heroId].equipment;
-  if(eq.weapon && eq.helm && eq.armor && eq.boots && eq.ring) state.stats.fullEquipHero = 1;
+  if(eq.weapon && eq.helm && eq.armor && eq.boots && eq.ring && eq.necklace && eq.belt) state.stats.fullEquipHero = 1;
   save(); checkAchievements(); checkQuests();
 }
 function unequipItem(heroId, slot){
@@ -521,8 +532,17 @@ function renderBattleScene(){
     const el = document.createElement('div');
     el.className = 'combatant player'+(p.alive?'':' dead');
     el.id = 'p'+i;
+    let badges = '';
+    const heroEq = (state.heroes[p.id] && state.heroes[p.id].equipment) ? state.heroes[p.id].equipment : {};
+    ['weapon','helm','armor','boots','ring','necklace','belt'].forEach(slot => {
+      if(heroEq[slot]){
+        const invItem = state.inventory.find(x=>x.uid===heroEq[slot]);
+        if(invItem) badges += `<img src="${assetPath('item',invItem.id)}" class="battle-badge" title="${_(itemData(invItem.id).name)}">`;
+      }
+    });
     el.innerHTML = `<div class="name-plate">${p.name}</div>
       <img src="${p.img}">
+      ${badges ? `<div class="battle-badges">${badges}</div>` : ''}
       <div class="hp-bar"><div class="fill" style="width:${p.hp/p.maxHp*100}%"></div>
         <div class="txt">${p.hp|0}/${p.maxHp}</div></div>`;
     pRow.appendChild(el);
@@ -1231,9 +1251,23 @@ function renderHeroDetail(){
   const owned = s && s.owned;
   const stats = owned ? heroStats(id) : {hp:h.hp,atk:h.atk,def:h.def,spd:h.spd,crit:h.crit,power:0};
   const body = document.getElementById('heroModalBody');
-  body.innerHTML = `
+    // Build equipped item overlays for hero portrait
+    let equipOverlays = '';
+    const heroEq = (state.heroes[id] && state.heroes[id].equipment) ? state.heroes[id].equipment : {};
+    ['weapon','helm','armor','boots','ring','necklace','belt'].forEach(slot => {
+      if(heroEq[slot]){
+        const invItem = state.inventory.find(x=>x.uid===heroEq[slot]);
+        if(invItem){
+          equipOverlays += `<img src="${assetPath('item',invItem.id)}" class="hero-equip-overlay hero-equip-${slot}" title="${_(itemData(invItem.id).name)}">`;
+        }
+      }
+    });
+    body.innerHTML = `
     <button class="close-btn" onclick="closeModal()">✕</button>
-    <img class="detail-img" src="${assetPath('hero',id)}">
+    <div class="hero-portrait-wrapper">
+      <img class="detail-img" src="${assetPath('hero',id)}">
+      ${equipOverlays}
+    </div>
     <h3 style="text-align:center;color:var(--gold);margin:6px 0">${_(h.name)}</h3>
     <div style="text-align:center;color:var(--muted);font-size:11px;margin-bottom:6px">${_(h.title)} • ${h.rarity}</div>
     <div class="hero-tabs">
@@ -1247,11 +1281,11 @@ function renderHeroDetail(){
     let html = '';
     const eqBox = document.createElement('div');
     eqBox.className = 'equip-slots';
-    ['weapon','helm','armor','boots','ring'].forEach(slot=>{
+    ['weapon','helm','armor','boots','ring','necklace','belt'].forEach(slot=>{
       const eq = (s && s.equipment && s.equipment[slot]) || null;
       const invItem = eq ? state.inventory.find(x=>x.uid===eq) : null;
       const it = invItem ? itemData(invItem.id) : null;
-      const icon = slot==='weapon'?'⚔':slot==='helm'?'👑':slot==='armor'?'🛡':slot==='boots'?'👢':'💍';
+      const icon = slot==='weapon'?'⚔':slot==='helm'?'👑':slot==='armor'?'🛡':slot==='boots'?'👢':slot==='ring'?'💍':slot==='necklace'?'📿':slot==='belt'?'🎗':'💍';
       html += `<div class="equip-slot ${it?'filled rarity-'+it.rarity:''}" onclick="openEquipPicker('${slot}')">
         ${it? `<img src="${assetPath('item',invItem.id)}">` : `<span class="slot-icon">${icon}</span>`}
       </div>`;

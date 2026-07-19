@@ -1,0 +1,85 @@
+name: Build APK & Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  # --------- Deploy static PWA site to GitHub Pages ----------
+  deploy-pages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare site
+        run: |
+          mkdir -p _site
+          # copy everything except .github and .git
+          rsync -av --exclude='.git' --exclude='.github' --exclude='_site' --exclude='*.md' ./ _site/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - uses: actions/deploy-pages@v4
+        id: deployment
+
+  # --------- Build Android APK with Capacitor + Gradle ----------
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Prepare www folder
+        run: |
+          mkdir -p www
+          rsync -av --exclude='.git' --exclude='.github' --exclude='www' --exclude='android' --exclude='node_modules' --exclude='*.md' --exclude='package*.json' --exclude='capacitor.config.*' ./ www/
+
+      - name: Initialize Capacitor project
+        run: |
+          npm init -y
+          npm install --save-dev @capacitor/core @capacitor/cli @capacitor/android
+          npx cap init "Shahnameh" "com.arena.shahnameh" --web-dir=www
+          npx cap add android
+          npx cap sync android
+
+      - name: Configure Android build
+        run: |
+          # ensure gradle wrapper is executable
+          chmod +x android/gradlew
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Shahnameh-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Create release with APK
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Shahnameh Build ${{ github.run_number }}
+          files: android/app/build/outputs/apk/debug/app-debug.apk
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

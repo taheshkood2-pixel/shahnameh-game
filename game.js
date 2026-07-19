@@ -128,7 +128,18 @@ function toast(msg, type='info', duration=2500){
 }
 function haptic(pattern){ if(state.settings.hapticFeedback && navigator.vibrate) navigator.vibrate(pattern) }
 function assetPath(kind, id){
-  if(kind==='item') return `assets/items/${id}.svg`;
+  if(kind==='item'){
+    // Use real PNG images for legendary/special items
+    const pngItems = ['legendary_gorz','legendary_babr_bayan','legendary_kiani_crown','legendary_kaman_arash','legendary_simorgh',
+      'gorz_gavsar','babr_bayan','taj_kiani','kaman_arash','mohreh_simorgh',
+      'sword_shahi','shamshir_shahi','armor_javidan','ring_yaghout','boots_rakhsh'];
+    // Map data.js item IDs to their PNG filenames
+    const pngMap = {'weapon_40':'legendary_gorz','armor_25':'legendary_babr_bayan','helm_40':'legendary_kiani_crown',
+      'weapon_41':'legendary_kaman_arash','necklace_40':'legendary_simorgh'};
+    if(pngMap[id]) return 'assets/items/' + pngMap[id] + '.png';
+    if(pngItems.includes(id)) return 'assets/items/' + id + '.png';
+    return 'assets/items/' + id + '.svg';
+  }
   if(kind==='pet') return `assets/pets/${id}.png`;
   const list = kind==='hero'? HEROES : ENEMIES;
   const obj = list.find(x=>x.id===id);
@@ -535,7 +546,13 @@ function endCinematic(){
 function showStory(chapter, phase, onDone){
   const modal = document.getElementById('storyModal');
   const lines = chapter[phase][state.lang] || chapter[phase].fa;
-  document.getElementById('storyBg').style.backgroundImage = `url('assets/story/${chapter.scene}.svg')`;
+  // Use PNG backgrounds where available, SVG as fallback
+    const pngScenes = ['fire','mountain','palace'];
+    const bgExt = pngScenes.includes(chapter.scene) ? 'png' : 'svg';
+    const bgFile = 'story_' + chapter.scene + '.' + bgExt;
+    const bgPath = 'assets/bg/' + bgFile;
+    const fallbackPath = 'assets/story/' + chapter.scene + '.svg';
+    document.getElementById('storyBg').style.backgroundImage = "url('" + bgPath + "'), url('" + fallbackPath + "')";
   document.getElementById('storyTitle').textContent = _(chapter.title);
   const txt = document.getElementById('storyText');
   let idx = 0;
@@ -915,6 +932,7 @@ function endBattle(win){
   if(!battle || battle.over) return;
   battle.over = true;
   playVoice(win?'victory':'defeat');
+  if(!win && state.settings.sound){ try{ const a = document.getElementById('voiceAudio'); a.src='assets/audio/narrator_defeat.mp3'; a.play().catch(()=>{}) }catch(e){} }
   sfx(win?'fanfare':'defeat');
   haptic(win?[100,50,100,50,200]:[300]);
   if(win){
@@ -942,6 +960,7 @@ function endBattle(win){
       checkLevelUp(id);
     });
     if(state.settings.music){ playMusic('victory') }
+    if(state.settings.sound){ try{ const a = document.getElementById('voiceAudio'); a.src='assets/audio/narrator_victory.mp3'; a.play().catch(()=>{}) }catch(e){} }
     logBattle('🏆 ' + _(D.victory));
     // Show battle result overlay
     setTimeout(()=>{

@@ -1,11 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
-<defs><radialGradient id="light" cx="50%" cy="30%"><stop offset="0%" stop-color="#2a1846" stop-opacity="0.5"/><stop offset="100%" stop-color="#000"/></radialGradient></defs>
-<rect width="400" height="300" fill="#000"/>
-<ellipse cx="200" cy="150" rx="180" ry="130" fill="url(#light)"/>
-<path d="M0 0 L100 0 L80 60 L60 40 L40 80 L20 50 L0 70 Z" fill="#1a0a00"/>
-<path d="M400 0 L300 0 L320 60 L340 40 L360 80 L380 50 L400 70 Z" fill="#1a0a00"/>
-<path d="M0 300 L80 300 L60 250 L40 270 L20 240 L0 260 Z" fill="#1a0a00"/>
-<path d="M400 300 L320 300 L340 250 L360 270 L380 240 L400 260 Z" fill="#1a0a00"/>
-<ellipse cx="200" cy="250" rx="100" ry="20" fill="#0a0517" opacity="0.8"/>
-<circle cx="200" cy="120" r="3" fill="#f5c542" opacity="0.3"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450">
+<defs>
+<radialGradient id="light" cx="50%" cy="40%"><stop offset="0%" stop-color="#1a3a5c" stop-opacity="0.3"/><stop offset="100%" stop-color="#000"/></radialGradient>
+<radialGradient id="crystal" cx="50%" cy="50%"><stop offset="0%" stop-color="#00ffaa" stop-opacity="0.4"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+</defs>
+<rect width="800" height="450" fill="#000"/>
+<ellipse cx="400" cy="200" rx="350" ry="200" fill="url(#light)"/>
+<!-- Cave walls -->
+<path d="M0 0 L150 0 L130 80 L100 60 L80 100 L50 70 L30 110 L0 90 Z" fill="#0a0517"/>
+<path d="M800 0 L650 0 L670 80 L700 60 L720 100 L750 70 L770 110 L800 90 Z" fill="#0a0517"/>
+<path d="M0 450 L200 450 L180 380 L150 400 L100 360 L50 390 L0 370 Z" fill="#0a0517"/>
+<path d="M800 450 L600 450 L620 380 L650 400 L700 360 L750 390 L800 370 Z" fill="#0a0517"/>
+<!-- Crystals -->
+<ellipse cx="200" cy="250" rx="30" ry="15" fill="url(#crystal)"/>
+<ellipse cx="600" cy="200" rx="25" ry="12" fill="url(#crystal)" opacity="0.7"/>
+<polygon points="180,240 185,220 190,240" fill="#00ffaa" opacity="0.3"/>
+<polygon points="590,195 595,175 600,195" fill="#00ffaa" opacity="0.25"/>
+<!-- Underground lake -->
+<ellipse cx="400" cy="380" rx="200" ry="40" fill="#0a1520" opacity="0.6"/>
+<ellipse cx="400" cy="380" rx="150" ry="25" fill="#0d2030" opacity="0.4"/>
+<!-- Stalactites -->
+<polygon points="300,0 305,60 295,60" fill="#1a0a2e" opacity="0.5"/>
+<polygon points="500,0 504,50 496,50" fill="#1a0a2e" opacity="0.4"/>
+<polygon points="400,0 406,70 394,70" fill="#1a0a2e" opacity="0.45"/>
 </svg>

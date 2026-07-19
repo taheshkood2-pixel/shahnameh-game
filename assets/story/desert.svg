@@ -1,11 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
-<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#4a1500"/><stop offset="50%" stop-color="#8b4513"/><stop offset="100%" stop-color="#d4a060"/></linearGradient></defs>
-<rect width="400" height="300" fill="url(#sky)"/>
-<circle cx="350" cy="60" r="30" fill="#ff6600" opacity="0.4"/>
-<circle cx="350" cy="60" r="20" fill="#ff8800" opacity="0.6"/>
-<path d="M0 200 Q50 180 100 200 Q150 180 200 200 Q250 220 300 200 Q350 180 400 200 L400 300 L0 300Z" fill="#c49040"/>
-<path d="M0 220 Q80 200 160 220 Q240 240 320 220 Q360 200 400 220 L400 300 L0 300Z" fill="#b88030"/>
-<path d="M180 200 L185 170 L190 175 L195 155 L200 175 L205 170 L210 200" fill="#2d1810" opacity="0.5"/>
-<circle cx="100" cy="250" r="3" fill="#d4a060" opacity="0.3"/>
-<circle cx="300" cy="240" r="2" fill="#d4a060" opacity="0.2"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450">
+<defs>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#1a0500"/><stop offset="40%" stop-color="#8b3500"/><stop offset="70%" stop-color="#c46020"/><stop offset="100%" stop-color="#d4803a"/></linearGradient>
+<radialGradient id="sun" cx="50%" cy="50%"><stop offset="0%" stop-color="#ff8800"/><stop offset="100%" stop-color="#ff440088"/></radialGradient>
+</defs>
+<rect width="800" height="450" fill="url(#sky)"/>
+<!-- Sun -->
+<circle cx="400" cy="200" r="60" fill="url(#sun)" opacity="0.8"/>
+<circle cx="400" cy="200" r="40" fill="#ffaa00" opacity="0.6"/>
+<!-- Dunes -->
+<path d="M0 300 Q100 260 200 300 Q300 260 400 300 Q500 340 600 300 Q700 260 800 300 L800 450 L0 450Z" fill="#b07020"/>
+<path d="M0 330 Q150 290 300 330 Q450 370 600 330 Q700 290 800 330 L800 450 L0 450Z" fill="#a06020"/>
+<path d="M0 360 Q200 330 400 360 Q600 390 800 360 L800 450 L0 450Z" fill="#906018"/>
+<!-- Ruins silhouette -->
+<rect x="550" y="270" width="15" height="40" fill="#2d1810" opacity="0.5"/>
+<rect x="580" y="260" width="20" height="50" fill="#2d1810" opacity="0.4"/>
+<rect x="545" y="258" width="60" height="8" fill="#2d1810" opacity="0.4"/>
+<!-- Dragon shadow in clouds -->
+<path d="M200 80 Q220 60 250 70 Q280 50 300 65 Q330 40 360 60 Q380 70 370 90 Q350 100 320 95 Q280 110 250 90 Q220 95 200 80" fill="#1a0500" opacity="0.15"/>
 </svg>

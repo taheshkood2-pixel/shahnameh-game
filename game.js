@@ -40,7 +40,9 @@ const DEFAULT_STATE = {
   },
   settings: {sound:true, sfx:true, music:true, autoSave:true, hapticFeedback:true, particleEffects:true, battleSpeed:1, autoBattle:true, cinematicShown:false},
   tutorialStep: 0,
+  prestige: 0, prestigeBonus: 0, dailyChallengeDone: 0,
   onboardingDone: false,
+  minigameCooldowns: {},
   playerName: 'پهلوان',
 };
 let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
@@ -181,6 +183,33 @@ function sfx(name){
 }
 
 // ---------------- HERO STATS (equip + pet + talent) ----------------
+
+// ---------------- HERO STARS (Evolution) ----------------
+// Dupes give stars. Each star = +15% all stats permanently.
+// Max 6 stars (needs 6 dupes). Visual star display on hero cards.
+function getHeroStars(heroId){ return (state.heroes[heroId] && state.heroes[heroId].stars) || 0 }
+function starCost(currentStars){ return [1,2,3,5,8,13][currentStars] || 99 } // Fibonacci-ish
+
+function evolveHero(heroId){
+  const s = state.heroes[heroId]; if(!s || !s.owned) return;
+  const currentStars = getHeroStars(heroId);
+  if(currentStars >= 6){ toast(_({fa:'حداکثر ستاره!',en:'Max stars!'}),'error'); return }
+  // Dupe shards system: each dupe gives shards, spend shards for star
+  const shardsNeeded = starCost(currentStars) * 10;
+  if(!s.dupeShards) s.dupeShards = 0;
+  if(s.dupeShards < shardsNeeded){
+    toast(_({fa:'شرد کافی نداری! ('+s.dupeShards+'/'+shardsNeeded+')',en:'Need '+shardsNeeded+' shards ('+s.dupeShards+'/'+shardsNeeded+')'}),'error',3000);
+    return;
+  }
+  s.dupeShards -= shardsNeeded;
+  s.stars = (s.stars || 0) + 1;
+  sfx('fanfare'); haptic([50,30,50,30,100]);
+  toast('⭐ '+_(heroData(heroId).name)+' → '+s.stars+'★','success',3000);
+  save(); refreshUI();
+  if(document.getElementById('heroModal').classList.contains('show')) openHero(heroId);
+}
+
+// Modify heroStats to include star bonus
 function heroStats(id){
   const h = heroData(id); if(!h) return null;
   const s = state.heroes[id] || {level:1, equipment:{}, talents:{}};
@@ -190,8 +219,9 @@ function heroStats(id){
   const stable = state.buildings.stable || 1;
   // Base scaling
   const lvlMult = 1 + (lvl-1)*BALANCE.levelStatGain;
+  const starMult = 1 + (getHeroStars(id) * 0.15); // +15% per star
   const bldMult = 1 + (imm-1)*BALANCE.buildingEffectPerLv.immortals;
-  const mult = lvlMult * bldMult;
+  const mult = lvlMult * bldMult * starMult;
   let hp = Math.floor(h.hp * mult);
   let atk = Math.floor(h.atk * mult);
   let def = Math.floor(h.def * mult);
@@ -349,6 +379,9 @@ function summon(type){
       if(already){
         // Dupe → gold + XP + shards
         const dupeGold = BALANCE.dupeGoldBase + (h.rarity==='SSR'?BALANCE.dupeShardsGold*2:(h.rarity==='SR'?BALANCE.dupeShardsGold:0));
+        // Give dupe shards for evolution
+        if(!state.heroes[h.id].dupeShards) state.heroes[h.id].dupeShards = 0;
+        state.heroes[h.id].dupeShards += (h.rarity==='SSR'?30:h.rarity==='SR'?15:8);
         state.gold += dupeGold;
         state.heroes[h.id].exp = (state.heroes[h.id].exp||0) + 80;
         checkLevelUp(h.id);
@@ -427,7 +460,9 @@ function startEndless(){
     reward: {
       gold: BALANCE.endlessGoldBase + eStage*BALANCE.endlessGoldPerStage,
       exp: 60 + eStage*15,
-      gems: eStage%5===0?15:0
+      gems: eStage%5===0 ? (eStage%25===0 ? 100 : eStage%10===0 ? 40 : 15) : 0,
+      scrolls: eStage%20===0 ? 3 : 0,
+      item: (eStage%15===0) ? 'random' : undefined
     },
     endlessScale: scale,
   };
@@ -851,12 +886,20 @@ function endBattle(win){
   if(win){
     state.stats.wins++; state.stats.d_wins++; state.stats.w_wins++;
     if(battle.stage.boss) state.stats.bosses++;
+    if(battle.stage.isDaily) completeDailyChallenge();
     const r = battle.stage.reward || {};
     if(r.gold) state.gold += r.gold;
     if(r.gems) state.gems += r.gems;
     if(r.exp) state.exp += r.exp;
     if(r.scrolls) state.scrolls += r.scrolls;
-    if(r.item){ addItem(r.item) }
+    if(r.item){
+      if(r.item === 'random'){
+        const pool = ITEMS.filter(i=>i.type!=='consumable');
+        const drop = pool[Math.floor(Math.random()*pool.length)];
+        addItem(drop.id);
+        setTimeout(()=>toast('🎁 '+_(itemData(drop.id).name)+'!','success',3000),800);
+      } else { addItem(r.item) }
+    }
     // Enemy item drop chance (very small chance per battle)
     maybeDropItem();
     // team XP
@@ -1206,11 +1249,24 @@ function claimIdle(){
 
 // ---------------- MINIGAMES ----------------
 function openMinigame(id){
+  // Cooldown check: 3 minutes between plays
+  if(!state.minigameCooldowns) state.minigameCooldowns = {};
+  const lastPlay = state.minigameCooldowns[id] || 0;
+  const cooldownMs = 3 * 60 * 1000; // 3 minutes
+  const now = Date.now();
+  if(now - lastPlay < cooldownMs){
+    const remain = Math.ceil((cooldownMs - (now - lastPlay)) / 1000);
+    const mins = Math.floor(remain/60);
+    const secs = remain%60;
+    toast(_({fa:'⏳ '+mins+':'+String(secs).padStart(2,'0')+' صبر کن!',en:'⏳ Wait '+mins+':'+String(secs).padStart(2,'0')+'!'}),'error',3000);
+    return;
+  }
+  state.minigameCooldowns[id] = now;
   state.stats.minigames++; state.stats.d_minigames++;
   if(id==='archery') startArchery();
   else if(id==='race') startRace();
   else if(id==='forge') startForge();
-  checkQuests();
+  checkQuests(); save();
 }
 let archery = null;
 function startArchery(){
@@ -1254,7 +1310,7 @@ function startArchery(){
     if(archery.time<=0){
       clearInterval(timer); archery.active = false;
       if(archery.score > state.stats.archeryHigh) state.stats.archeryHigh = archery.score;
-      const gems = Math.floor(archery.score/8);
+      const gems = Math.floor(archery.score/20); // Nerfed: was /8
       const gold = archery.score * 6;
       state.gems += gems; state.gold += gold;
       toast(`🎯 ${_(D.score)}: ${archery.score}! +${gold}💰 +${gems}💎`,'success');
@@ -1300,7 +1356,7 @@ function startRace(){
       if(o.x < horse.x+30 && o.x > horse.x-20 && horse.y > GROUND-40){
         gameOver = true;
         if(score >= 20){ state.stats.raceWins++ }
-        const gems = Math.floor(score/4);
+        const gems = Math.floor(score/10); // Nerfed: was /4
         const gold = score * 12;
         state.gems += gems; state.gold += gold;
         toast(`🏁 ${_(D.score)}: ${score}! +${gold}💰 +${gems}💎`,'success');
@@ -1432,7 +1488,7 @@ function renderHeroes(){
       ${!owned?'<div class="lock">🔒</div>':''}
       ${equipDots}
       <div class="name">${_(h.name)}</div>
-      <div class="power">${owned?`⚡ ${formatNum(stats.power)}`:_(D.locked)}</div>`;
+      <div class="power">${owned?`⚡ ${formatNum(stats.power)} ${(getHeroStars(h.id)>0?'⭐'.repeat(getHeroStars(h.id)):'')}`:_(D.locked)}</div>`;
     card.onclick = ()=>{ sfx('click'); openHero(h.id) };
     g.appendChild(card);
   });
@@ -1485,6 +1541,15 @@ function renderHeroDetail(){
     <div id="heroTabContent"></div>`;
   const c = document.getElementById('heroTabContent');
   if(currentHeroTab==='stats'){
+    // Build evolve button string
+    let evolveBtn = '';
+    if(owned){
+      const stars = getHeroStars(id);
+      const shards = s.dupeShards || 0;
+      const cost = starCost(stars) * 10;
+      const label = stars<6 ? '⭐ ارتقاء ('+shards+'/'+cost+' شرد)' : '⭐ MAX ★★★★★★';
+      evolveBtn = '<button class="big-btn secondary" style="width:100%;margin-top:4px" onclick="evolveHero(\x27'+id+'\x27)"><span>'+label+'</span></button>';
+    }
     let html = '';
     const eqBox = document.createElement('div');
     eqBox.className = 'equip-slots';
@@ -1500,6 +1565,7 @@ function renderHeroDetail(){
     c.innerHTML = `<div class="equip-slots">${html}</div>
       <div class="stat-row"><span class="lbl">${_(D.level)}</span><span class="val">${owned?s.level:'-'}</span></div>
       <div class="stat-row"><span class="lbl">${_(D.power)}</span><span class="val" style="color:var(--ssr)">${formatNum(stats.power)||'-'}</span></div>
+      ${owned && getSetBonus(id).bonus?`<div class="stat-row"><span class="lbl" style="color:var(--green)">🎯 Set</span><span class="val" style="color:var(--green)">${getSetBonus(id).count}× ${getSetBonus(id).rarity} (+${Math.floor(getSetBonus(id).mult*100)}%)</span></div>`:''}
       ${owned?`<div class="stat-row"><span class="lbl">XP</span><span class="val">${s.exp||0} / ${xpNeeded(s.level)}</span></div>`:''}
       <div class="stat-row"><span class="lbl">❤ HP</span><span class="val">${formatNum(stats.hp)}</span></div>
       <div class="stat-row"><span class="lbl">⚔ ATK</span><span class="val">${formatNum(stats.atk)}</span></div>
@@ -1510,6 +1576,7 @@ function renderHeroDetail(){
       <button class="big-btn" style="width:100%;margin-top:8px" ${!owned?'disabled':''} onclick="upgradeHero('${id}')">
         <span>${_(D.upgrade)} (${owned?formatNum(Math.floor(BALANCE.upgradeGoldBase*Math.pow(BALANCE.upgradeGoldGrowth,s.level-1)*(BALANCE.rarityCostMult[h.rarity]||1)*(1-Math.min(0.5,(state.buildings.bazaar-1)*BALANCE.buildingEffectPerLv.bazaar)))):0}💰)</span>
       </button>
+      ${evolveBtn}
       <button class="big-btn secondary" style="width:100%;margin-top:5px" ${!owned?'disabled':''} onclick="toggleDeploy('${id}')">
         <span>${state.team.includes(id)?'✓ '+_(D.in_team):_(D.deploy)}</span>
       </button>`;
@@ -1748,13 +1815,18 @@ function renderMinigames(){
   MINIGAMES.forEach(m=>{
     const div = document.createElement('div');
     div.className = 'minigame-card';
+    const lastPlay = (state.minigameCooldowns && state.minigameCooldowns[m.id]) || 0;
+    const cdRemain = Math.max(0, 3*60*1000 - (Date.now() - lastPlay));
+    const onCooldown = cdRemain > 0;
+    const cdText = onCooldown ? Math.ceil(cdRemain/60000)+'m' : '';
     div.innerHTML = `
       <div class="mg-icon">${m.icon}</div>
       <div class="mg-info">
         <div class="mg-name">${_(m.name)}</div>
         <div class="mg-desc">${_(m.desc)}</div>
+        ${onCooldown? '<div style="color:var(--muted);font-size:10px">⏳ '+cdText+'</div>' : '<div style="color:var(--green);font-size:10px">✓ آماده</div>'}
       </div>
-      <button class="big-btn" style="min-width:70px" onclick="openMinigame('${m.id}')">▶</button>`;
+      <button class="big-btn ${onCooldown?'secondary':''}" style="min-width:70px" onclick="openMinigame('${m.id}')" ${onCooldown?'disabled':''}>▶</button>`;
     c.appendChild(div);
   });
 }
@@ -1789,6 +1861,8 @@ function renderSettings(){
     </div>
     <button class="big-btn secondary" style="width:100%;margin-top:14px" onclick="exportSave()">💾 ${_(D.exportSave)}</button>
     <button class="big-btn secondary" style="width:100%;margin-top:5px" onclick="importSave()">📥 ${_(D.importSave)}</button>
+    ${canPrestige()?`<button class="big-btn epic" style="width:100%;margin-top:10px" onclick="doPrestige()">🌟 PRESTIGE ${state.prestige||0} → ${((state.prestige||0)+1)} (+10% Power)</button>`:''}
+    ${(state.prestige||0)>0?`<div style="text-align:center;color:var(--ssr);font-size:11px;margin:4px 0">🌟 Prestige ${state.prestige}: +${Math.floor((state.prestigeBonus||0)*100)}% Power</div>`:''}
     <button class="big-btn" style="background:linear-gradient(180deg,#c1272d,#7b0000);width:100%;margin-top:5px" onclick="resetGame()">🗑 ${_(D.resetGame)}</button>`;
 }
 function toggleSetting(k,v){ state.settings[k]=v; sfx('click'); save() }
@@ -2302,13 +2376,104 @@ function buyShopItem(shopId){
   save(); refreshUI(); renderShop();
 }
 
+
+// ---------------- PRESTIGE SYSTEM ----------------
+// At chapter 7 complete, player can prestige for permanent bonuses.
+// Each prestige: +10% all stats, +20% gold rate, reset chapter/level
+// Max prestige level: 10
+function canPrestige(){ return state.progress.chapter > 7 && (state.prestige||0) < 10 }
+function doPrestige(){
+  if(!canPrestige()) return;
+  if(!confirm(_({fa:'پرتیج؟ فصل و لول ریست میشه ولی +۱۰٪ قدرت دائم میگیری!',en:'Prestige? Chapters/levels reset but +10% permanent power!'}))) return;
+  state.prestige = (state.prestige||0) + 1;
+  state.prestigeBonus = (state.prestigeBonus||0) + 0.10;
+  // Reset progress but keep heroes, items, pets
+  state.progress = {chapter:1, stage:0, storyRead:{}};
+  state.endlessStage = 0;
+  // Reset hero levels to 1 but keep stars
+  for(const hid in state.heroes){
+    state.heroes[hid].level = 1;
+    state.heroes[hid].exp = 0;
+  }
+  sfx('fanfare'); haptic([100,50,100,50,200]);
+  toast('🌟 PRESTIGE '+state.prestige+'! +'+Math.floor(state.prestigeBonus*100)+'% Power','success',5000);
+  save(); refreshUI(); showScreen('home');
+}
+
+
+// ---------------- GEAR SET BONUSES ----------------
+// Wearing items of the same rarity gives bonus
+function getSetBonus(heroId){
+  const s = state.heroes[heroId]; if(!s || !s.equipment) return {count:{}, bonus:null};
+  const eq = s.equipment;
+  const rarities = {};
+  for(const slot in eq){
+    const uid = eq[slot]; if(!uid) continue;
+    const inv = state.inventory.find(x=>x.uid===uid); if(!inv) continue;
+    const it = itemData(inv.id); if(!it) continue;
+    rarities[it.rarity] = (rarities[it.rarity]||0) + 1;
+  }
+  // 4+ same rarity = set bonus
+  for(const r in rarities){
+    if(rarities[r] >= 4){
+      const mult = r==='Legendary'?0.20:r==='Epic'?0.15:r==='Rare'?0.10:0.05;
+      return {rarity:r, count:rarities[r], mult:mult};
+    }
+  }
+  return {count:{}, bonus:null};
+}
+
+
+// ---------------- DAILY CHALLENGE ----------------
+// One special challenge per day with big rewards
+function getDailyChallenge(){
+  const today = Math.floor(Date.now()/(24*3600*1000));
+  const seed = today * 7 + 13; // deterministic per day
+  const diff = Math.min(10, 1 + Math.floor(state.stats.heroCount / 3));
+  const tier = Math.min(6, Math.floor(seed % 6) + 1);
+  const enemyPool = ENEMIES.filter(e=>e.tier===tier);
+  const enemy = enemyPool[seed % enemyPool.length];
+  return {
+    enemy: enemy.id,
+    scale: 1.5 + diff * 0.3,
+    waves: Math.min(3, 1 + Math.floor(diff/3)),
+    reward: {
+      gold: 1000 + diff * 500,
+      gems: 30 + diff * 10,
+      scrolls: diff >= 5 ? 3 : 1,
+    },
+    completed: state.dailyChallengeDone === today
+  };
+}
+
+function startDailyChallenge(){
+  const ch = getDailyChallenge();
+  if(ch.completed){ toast(_({fa:'امروز انجام دادی! فردا بیا.',en:'Done today! Come back tomorrow.'}),'error'); return }
+  const enemyBase = enemyData(ch.enemy);
+  const stage = {
+    enemy: ch.enemy,
+    wave: ch.waves,
+    boss: true,
+    endlessScale: ch.scale,
+    reward: ch.reward,
+    isDaily: true,
+  };
+  startBattle(stage, 'daily');
+}
+
+function completeDailyChallenge(){
+  const today = Math.floor(Date.now()/(24*3600*1000));
+  state.dailyChallengeDone = today;
+  save();
+}
+
 Object.assign(window, {
   showScreen, summon, startCampaign, startEndless, toggleAuto, toggleSpeed,
   claimIdle, toggleLang, openHero, closeModal, upgradeHero, upgradeBuilding,
   toggleDeploy, filterInv, switchTab, claimQuest, claimAchievement,
   togglePet, upgradePet, openMinigame, closeMini, forgeHit, toggleSetting,
   exportSave, importSave, resetGame, upgradeTalent, resetTalents, switchHeroTab,
-  openEquipPicker, unequipItem, nextCinematicScene, skipCinematic, tutorialNext, tutorialSkip, playMusic, stopMusic, toggleMusicSetting, startTutorial, togglePause, useConsumable, enhanceItem, renderShop, buyShopItem,
+  openEquipPicker, unequipItem, nextCinematicScene, skipCinematic, tutorialNext, tutorialSkip, playMusic, stopMusic, toggleMusicSetting, startTutorial, togglePause, useConsumable, enhanceItem, renderShop, buyShopItem, evolveHero, doPrestige, startDailyChallenge, getSetBonus,
 });
 
 // ---------------- ENEMY ITEM DROP CHANCE & CONSUMABLE USE ----------------

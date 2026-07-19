@@ -10,10 +10,6 @@ permissions:
   pages: write
   id-token: write
 
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
 jobs:
   deploy-pages:
     runs-on: ubuntu-latest
@@ -51,120 +47,113 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          api-level: 33
-          build-tools: 33.0.2
 
       - name: Accept Android licenses
-        run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+        run: yes | sdkmanager --licenses || true
 
-      - name: Wait for Pages deployment
-        run: sleep 25
-
-      - name: Build APK with Capacitor
+      - name: Install Capacitor and dependencies
         run: |
-          set -e
-          
           echo "📦 Installing Capacitor..."
-          npm init -y
           npm install @capacitor/core @capacitor/cli @capacitor/android
           
-          echo "⚙️ Creating capacitor config..."
+          echo "✅ Capacitor installed successfully"
+          npm list @capacitor/core
+
+      - name: Prepare web directory
+        run: |
+          echo "📁 Creating www directory..."
+          mkdir -p www
+          
+          echo "📋 Listing files in current directory:"
+          ls -la
+          
+          echo "📋 Copying files to www..."
+          cp index.html www/ || echo "⚠️ index.html not found"
+          cp data.js www/ || echo "⚠️ data.js not found"
+          cp game.js www/ || echo "⚠️ game.js not found"
+          cp music.js www/ || echo "⚠️ music.js not found"
+          cp sw.js www/ || echo "⚠️ sw.js not found"
+          cp manifest.json www/ || echo "⚠️ manifest.json not found"
+          cp -r assets www/ || echo "⚠️ assets folder not found"
+          
+          echo "📂 Files in www directory:"
+          ls -la www/
+          du -sh www/
+
+      - name: Initialize Capacitor
+        run: |
+          echo "⚙️ Creating capacitor.config.json..."
           cat > capacitor.config.json << 'CEOF'
           {
             "appId": "com.shahnameh.game",
-            "appName": "شاهنامه",
+            "appName": "Shahnameh",
             "webDir": "www",
-            "server": {
-              "androidScheme": "https"
-            }
+            "bundledWebRuntime": false
           }
           CEOF
           
-          echo "📁 Preparing web files..."
-          mkdir -p www
-          ls -la
-          
-          # Copy all web files
-          cp index.html data.js game.js music.js sw.js manifest.json www/ || echo "Warning: Some JS files missing"
-          cp -r assets www/ || echo "Warning: assets folder missing"
-          
-          echo "📂 Files in www:"
-          ls -la www/
-          
+          echo "✅ Capacitor config created"
+          cat capacitor.config.json
+
+      - name: Add Android platform
+        run: |
           echo "🔧 Adding Android platform..."
-          npx cap add android || {
-            echo "❌ Failed to add Android platform"
-            exit 1
-          }
+          npx cap add android
           
+          echo "✅ Android platform added"
+          ls -la android/
+
+      - name: Sync Capacitor
+        run: |
           echo "🔄 Syncing Capacitor..."
-          npx cap sync android || {
-            echo "❌ Failed to sync"
-            exit 1
-          }
+          npx cap sync android
           
+          echo "✅ Capacitor synced"
+
+      - name: Build APK
+        run: |
           echo "🏗️ Building APK..."
           cd android
+          
+          echo "📋 Making gradlew executable..."
           chmod +x gradlew
           
-          # Build with more memory and verbose output
-          export GRADLE_OPTS="-Xmx2048m"
-          ./gradlew assembleDebug --no-daemon --stacktrace --info 2>&1 | tee build.log
+          echo "🔨 Running Gradle build..."
+          ./gradlew assembleDebug --no-daemon --stacktrace
           
-          if [ $? -ne 0 ]; then
-            echo "❌ Build failed! Last 50 lines:"
-            tail -50 build.log
-            exit 1
-          fi
+          echo "✅ Build completed"
+          
+          echo "📋 Looking for APK..."
+          find . -name "*.apk" -type f
           
           echo "📋 Copying APK..."
-          cp app/build/outputs/apk/debug/app-debug.apk ../shahnameh-v22.apk || {
-            echo "❌ APK not found at expected location"
-            find . -name "*.apk" -type f
-            exit 1
-          }
+          cp app/build/outputs/apk/debug/app-debug.apk ../shahnameh-v22.apk
           
-          echo "✅ APK built successfully!"
+          echo "✅ APK copied"
           ls -lh ../shahnameh-v22.apk
 
-      - name: Upload APK Artifact
-        if: success()
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: shahnameh-game-v22
+          name: shahnameh-apk
           path: shahnameh-v22.apk
           retention-days: 30
 
-      - name: Create GitHub Release
-        if: success()
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v22-apk
-          name: "🎮 شاهنامه v22 APK"
+          name: "🎮 Shahnameh v22 APK"
           body: |
             ## 🏛 Shahnameh: Rise of Kings v22
             
-            ### ✅ Features
-            - 26 heroes (SSR/SR/R) with 5 classes
-            - 24 enemies across 7 chapters
-            - 378 items with unique art
-            - 68 voice files (Persian narration)
-            - PixiJS particle effects
-            - Cinematic intro with voice
-            - Prestige system (10 levels)
-            - 100+ hours gameplay
-            
             ### 📱 Install
-            1. Download APK below
-            2. Enable "Install from unknown sources"
-            3. Install and play!
+            1. Download the APK file below
+            2. Enable "Install from unknown sources" in your Android settings
+            3. Install and enjoy the game!
             
-            ### 🌐 Also play online
+            ### 🌐 Play Online
             https://taheshkood2-pixel.github.io/shahnameh-game/
           files: shahnameh-v22.apk
-          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

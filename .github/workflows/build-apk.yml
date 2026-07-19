@@ -47,71 +47,89 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: latest
 
-      - name: Accept Android licenses
-        run: yes | sdkmanager --licenses || true
+      - name: Install Android SDK components
+        run: |
+          echo "Installing required Android SDK components..."
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          yes | sdkmanager --licenses || true
 
       - name: Install Capacitor
         run: npm install @capacitor/core @capacitor/cli @capacitor/android
 
-      - name: Prepare web directory (lightweight)
+      - name: Prepare minimal web directory
         run: |
-          mkdir -p www
+          mkdir -p www/assets
           cp index.html data.js game.js music.js sw.js manifest.json www/
           
-          # Only copy essential assets (skip audio to save space)
-          mkdir -p www/assets
-          cp -r assets/heroes www/assets/ 2>/dev/null || true
-          cp -r assets/enemies www/assets/ 2>/dev/null || true
-          cp -r assets/items www/assets/ 2>/dev/null || true
-          cp -r assets/bg www/assets/ 2>/dev/null || true
-          cp -r assets/story www/assets/ 2>/dev/null || true
-          cp -r assets/ui www/assets/ 2>/dev/null || true
+          # Copy only essential assets (no audio to keep APK small)
           cp -r assets/fonts www/assets/ 2>/dev/null || true
-          cp -r assets/sprites www/assets/ 2>/dev/null || true
-          cp -r assets/pets www/assets/ 2>/dev/null || true
-          # Skip audio (too large for APK) - can stream online
+          cp -r assets/ui www/assets/ 2>/dev/null || true
+          
+          # Create placeholder for other assets (will load from GitHub Pages)
+          cat > www/assets/README.txt << 'AEOF'
+          Game assets load from: https://taheshkood2-pixel.github.io/shahnameh-game/assets/
+          AEOF
+          
           echo "www size:"
           du -sh www/
+          ls -la www/
 
-      - name: Initialize and sync Capacitor
+      - name: Initialize Capacitor
         run: |
           cat > capacitor.config.json << 'CEOF'
           {
             "appId": "com.shahnameh.game",
             "appName": "Shahnameh",
             "webDir": "www",
-            "bundledWebRuntime": false
+            "bundledWebRuntime": false,
+            "server": {
+              "url": "https://taheshkood2-pixel.github.io/shahnameh-game/"
+            }
           }
           CEOF
           
           npx cap add android
           npx cap sync android
 
-      - name: Fix Gradle memory
+      - name: Configure Gradle
         run: |
           cd android
-          echo "org.gradle.jvmargs=-Xmx2048m" >> gradle.properties
-          echo "android.useAndroidX=true" >> gradle.properties
+          cat > gradle.properties << 'GEOF'
+          org.gradle.jvmargs=-Xmx4096m
+          org.gradle.daemon=false
+          org.gradle.parallel=true
+          android.useAndroidX=true
+          android.enableJetifier=true
+          GEOF
 
-      - name: Build APK
+      - name: Build APK with detailed logging
         run: |
           cd android
           chmod +x gradlew
           
-          echo "🔨 Building APK with Gradle..."
-          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
+          echo "📋 Checking Gradle version..."
+          ./gradlew --version
+          
+          echo "🔨 Building APK..."
+          ./gradlew assembleDebug --no-daemon --stacktrace --info 2>&1 | tee build.log
           
           BUILD_STATUS=${PIPESTATUS[0]}
           
+          echo "📋 Build log (last 100 lines):"
+          tail -100 build.log
+          
           if [ $BUILD_STATUS -ne 0 ]; then
-            echo "❌ Build failed! Showing last 80 lines:"
-            tail -80 build.log
+            echo "❌ Build failed with status: $BUILD_STATUS"
+            echo "📋 Searching for errors in log:"
+            grep -i "error\|failed\|exception" build.log | head -20
             exit $BUILD_STATUS
           fi
           
           echo "✅ Build succeeded!"
-          find . -name "*.apk" -type f -exec ls -lh {} \;
+          ls -lh app/build/outputs/apk/debug/
           cp app/build/outputs/apk/debug/app-debug.apk ../shahnameh-v22.apk
           ls -lh ../shahnameh-v22.apk
 
@@ -135,7 +153,8 @@ jobs:
             2. Enable unknown sources
             3. Install & play!
             
-            ### 🌐 Online: https://taheshkood2-pixel.github.io/shahnameh-game/
+            ### 🌐 Assets load from:
+            https://taheshkood2-pixel.github.io/shahnameh-game/
           files: shahnameh-v22.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

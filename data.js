@@ -629,7 +629,14 @@ const ITEMS = [
   {id:'belt_46',type:'belt',rarity:'Legendary',name:{fa:'belt 47',en:'Belt 47'},hp:150,def:30,spd:16},
   {id:'belt_47',type:'belt',rarity:'Legendary',name:{fa:'belt 48',en:'Belt 48'},hp:150,def:30,spd:16},
   {id:'belt_48',type:'belt',rarity:'Legendary',name:{fa:'belt 49',en:'Belt 49'},hp:150,def:30,spd:16},
-  {id:'belt_49',type:'belt',rarity:'Legendary',name:{fa:'belt 50',en:'Belt 50'},hp:150,def:30,spd:16},];
+  {id:'belt_49',type:'belt',rarity:'Legendary',name:{fa:'belt 50',en:'Belt 50'},hp:150,def:30,spd:16},
+  // CONSUMABLES (Potions) — added for gameplay depth
+  {id:'potion_hp_small',type:'consumable',rarity:'Common',name:{fa:'معجون سلامتی کوچک',en:'Small Health Potion'},effect:'heal',value:50},
+  {id:'potion_hp_medium',type:'consumable',rarity:'Rare',name:{fa:'معجون سلامتی متوسط',en:'Medium Health Potion'},effect:'heal',value:120},
+  {id:'potion_hp_large',type:'consumable',rarity:'Epic',name:{fa:'معجون سلامتی بزرگ',en:'Large Health Potion'},effect:'heal',value:300},
+  {id:'potion_mp_small',type:'consumable',rarity:'Rare',name:{fa:'معجون انرژی کوچک',en:'Small Energy Potion'},effect:'energy',value:1},
+  {id:'revive_potion',type:'consumable',rarity:'Legendary',name:{fa:'معجون احیا',en:'Revive Potion'},effect:'revive',value:1},
+];
 
 // ---------------- PETS (Upgradeable) ----------------
 const PETS = [

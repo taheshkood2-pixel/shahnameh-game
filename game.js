@@ -678,6 +678,8 @@ function endBattle(win){
     if(r.exp) state.exp += r.exp;
     if(r.scrolls) state.scrolls += r.scrolls;
     if(r.item){ addItem(r.item) }
+    // Enemy item drop chance (very small chance per battle)
+    maybeDropItem();
     // team XP
     state.team.forEach(id=>{
       state.heroes[id].exp = (state.heroes[id].exp||0) + Math.floor((r.exp||30)/state.team.length + (r.exp||30)*0.5);
@@ -1351,6 +1353,14 @@ function renderInventory(){
       <div class="i-stats">${it.atk?`⚔+${it.atk} `:''}${it.def?`🛡+${it.def} `:''}${it.hp?`❤+${it.hp} `:''}${it.spd?`💨+${it.spd} `:''}${it.crit?`💥+${it.crit}%`:''}</div>
       ${equippedBy?`<div class="equipped">✓ ${_(heroData(equippedBy).name)}</div>`:''}`;
     card.onclick = ()=>{ sfx('click'); openItemDetail(inv) };
+    // Add use button for consumables
+    if(it && it.type==='consumable'){
+      const btn = document.createElement('button');
+      btn.className = 'mini-btn'; btn.textContent = '🍵 USE';
+      btn.style.width = '100%'; btn.style.marginTop = '4px'; btn.style.fontSize = '10px';
+      btn.onclick = (e)=>{ e.stopPropagation(); useConsumable(inv.uid); openItemDetail(inv); refreshUI() };
+      card.appendChild(btn);
+    }
     g.appendChild(card);
   });
 }
@@ -1742,6 +1752,7 @@ const D = {
   talentPoints:{fa:'امتیاز تلنت',en:'Talent Points'},
   pointsRefunded:{fa:'امتیاز بازگشت داده شد',en:'points refunded'},
   reset:{fa:'ریست',en:'Reset'},
+  use:{fa:'استفاده',en:'USE'},
   maxRank:{fa:'حداکثر رنک',en:'Max rank'},
   completed:{fa:'تکمیل شده',en:'completed'},
   class:{fa:'کلاس',en:'Class'},
@@ -1944,3 +1955,40 @@ Object.assign(window, {
   exportSave, importSave, resetGame, upgradeTalent, resetTalents, switchHeroTab,
   openEquipPicker, unequipItem, nextCinematicScene, skipCinematic, tutorialNext, tutorialSkip, playMusic, stopMusic, toggleMusicSetting, startTutorial,
 });
+
+// ---------------- ENEMY ITEM DROP CHANCE & CONSUMABLE USE ----------------
+// Small chance for any enemy to drop a random item after battle
+function maybeDropItem(){
+  if(Math.random() < 0.03){ // 3% base drop chance
+    const pool = ITEMS.filter(i => i.type !== 'consumable');
+    const drop = pool[Math.floor(Math.random()*pool.length)];
+    if(drop){ addItem(drop.id); sfx('coin'); toast(`💎 ${_(itemData(drop.id).name)}!`,'success',3000) }
+  }
+  // Bonus: very rare Legendary drop (0.5%)
+  if(Math.random() < 0.005){
+    const leg = ITEMS.filter(i => i.rarity==='Legendary');
+    if(leg.length){ addItem(leg[Math.floor(Math.random()*leg.length)].id); sfx('fanfare'); toast('🌟 LEGENDARY DROP!','success',4000) }
+  }
+}
+
+function useConsumable(invUid){
+  const inv = state.inventory.find(x=>x.uid===invUid); if(!inv) return;
+  const it = itemData(inv.id); if(!it || it.type!=='consumable') return;
+  const heroId = currentHeroId || state.team[0];
+  const hero = state.heroes[heroId]; if(!hero) return;
+  if(it.effect==='heal'){
+    const stats = heroStats(heroId);
+    if(stats) hero.hp = Math.min(stats.maxHp, hero.hp + (stats.hp*0.3)); // heal 30% max hp
+    sfx('heal'); haptic(30);
+    toast(`💚 ${_(it.name)}: +${Math.floor(stats?stats.hp*0.3:50)} HP`,'success');
+  } else if(it.effect==='energy'){
+    state.summonEnergy = Math.min(BALANCE.summonEnergyMax, state.summonEnergy+1);
+    toast(`⚡ ${_(it.name)}!`,'success');
+  } else if(it.effect==='revive'){
+    // Revive logic would apply in battle - basic version
+    toast(`💫 ${_(it.name)}!`,'success');
+  }
+  // Remove consumable from inventory
+  state.inventory = state.inventory.filter(x=>x.uid!==invUid);
+  save(); refreshUI();
+}

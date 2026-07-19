@@ -250,7 +250,7 @@ const TALENT_TREE = {
 
 // ---------------- ENEMIES (24) — balanced by tier ----------------
 const ENEMIES = [
-  {id:'zahhak',ext:'png',name:{fa:'ضحاک ماردوش',en:'Zahhak the Serpent-King'},rarity:'SSR',hp:280,atk:30,def:20,spd:10,tier:1,voice:'zahhak_voice'},
+  {id:'zahhak',ext:'png',name:{fa:'ضحاک ماردوش',en:'Zahhak the Serpent-King'},rarity:'SSR',hp:220,atk:26,def:16,spd:10,tier:1,voice:'zahhak_voice'},
   {id:'kondrow',ext:'png',name:{fa:'کندرو',en:'Kondrow'},rarity:'R',hp:75,atk:13,def:8,spd:12,tier:1,voice:'kondrow_voice'},
   {id:'kaftar_div',ext:'png',name:{fa:'کفتار دیو',en:'Hyena Demon'},rarity:'N',hp:55,atk:11,def:5,spd:15,tier:1,voice:'kaftar_div_voice'},
   {id:'sheer_div',ext:'png',name:{fa:'شیر ژیان',en:'Fierce Lion'},rarity:'R',hp:120,atk:19,def:12,spd:14,tier:2,voice:'sheer_div_voice'},

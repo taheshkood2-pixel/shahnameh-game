@@ -1,4 +1,4 @@
-const CACHE = 'shahnameh-v15';
+const CACHE = 'shahnameh-v16';
 const CORE = ['./','./index.html','./data.js','./game.js','./music.js','./manifest.json'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).then(()=>self.skipWaiting()));

@@ -58,8 +58,9 @@ function load(){
     }
   }catch(e){ console.warn('Load failed', e) }
   if(!state.heroes.kaveh) {
-    const kavehArmor = addItem('old_cloth_start');
-    state.heroes.kaveh = {level:1,owned:true,exp:0,equipment:{armor:kavehArmor},talents:{},talentPoints:0};
+    const kavehArmor = addItem('armor_00');
+    const kavehWeapon = addItem('weapon_00');
+    state.heroes.kaveh = {level:3,owned:true,exp:0,equipment:{armor:kavehArmor,weapon:kavehWeapon},talents:{},talentPoints:0};
   }
   // Default starting equipment for all heroes without gear
   for(const hid in state.heroes){
@@ -205,6 +206,15 @@ function heroStats(id){
     const it = itemData(inv.id); if(!it) continue;
     let itemAtk = it.atk||0; let itemHp = it.hp||0; let itemDef = it.def||0; let itemSpd = it.spd||0; let itemCrit = it.crit||0;
     if(it.hero === id){ itemAtk = Math.floor(itemAtk*1.2); itemHp = Math.floor(itemHp*1.2); itemDef = Math.floor(itemDef*1.2); itemSpd = Math.floor(itemSpd*1.2); itemCrit = Math.floor(itemCrit*1.2) }
+    // Enhancement bonuses
+    const enh = state.inventory.find(x=>x.uid===uid);
+    if(enh && enh.bonusStats){
+      itemAtk += enh.bonusStats.atk||0;
+      itemHp += enh.bonusStats.hp||0;
+      itemDef += enh.bonusStats.def||0;
+      itemSpd += enh.bonusStats.spd||0;
+      itemCrit += enh.bonusStats.crit||0;
+    }
     hp += itemHp; atk += itemAtk; def += itemDef; spd += itemSpd; crit += itemCrit;
   }
   // Talents
@@ -516,12 +526,23 @@ function startBattle(stage, mode){
     toast(_(D.no_team),'error');
     showScreen('heroes'); return;
   }
-  const players = state.team.map(id=>{
+  // Formation: sort team by class — tanks first (front), supports last (back)
+  const classOrder = {tank:0, warrior:1, archer:2, mage:3, support:4};
+  const sortedTeam = [...state.team].sort((a,b)=>{
+    const ha = heroData(a); const hb = heroData(b);
+    return (classOrder[ha.class]||2) - (classOrder[hb.class]||2);
+  });
+  const players = sortedTeam.map((id,idx)=>{
     const h = heroData(id);
     const s = heroStats(id);
+    const pos = idx < 2 ? 'front' : 'back'; // first 2 in front row
+    // Front row tanks get +15% defense, back row supports get +10% healing
+    let def = s.def, hp = s.hp;
+    if(pos === 'front' && h.class === 'tank'){ def = Math.floor(def * 1.15) }
+    if(pos === 'back' && h.class === 'support'){ hp = Math.floor(hp * 1.10) }
     return {id, kind:'hero', name:_(h.name), img:spritePath('hero',id),
-      hp:s.hp, maxHp:s.hp, atk:s.atk, def:s.def, spd:s.spd, crit:s.crit,
-      class:h.class, alive:true, effects:[], voice:h.voice};
+      hp:hp, maxHp:hp, atk:s.atk, def:def, spd:s.spd, crit:s.crit,
+      class:h.class, position:pos, alive:true, effects:[], voice:h.voice};
   });
   const enemyBase = enemyData(stage.enemy);
   const waves = stage.wave || 1;
@@ -646,6 +667,31 @@ function battleTick(){
     return;
   }
   const attacker = turn.unit;
+  // Process status effects (burn/poison damage over time)
+  if(attacker.effects && attacker.effects.length > 0){
+    attacker.effects = attacker.effects.filter(eff=>{
+      if(eff.type==='burn' || eff.type==='poison'){
+        const dot = eff.value || 5;
+        attacker.hp -= dot;
+        const selIdx = turn.side==='p'? battle.players.indexOf(attacker) : battle.enemies.indexOf(attacker);
+        const sel = (turn.side==='p'?'#p':'#e') + selIdx;
+        dmgPopup(sel, eff.type==='burn'?'🔥'+dot:'☠'+dot, false);
+        eff.turns--;
+        return eff.turns > 0;
+      }
+      if(eff.type==='shield'){
+        eff.turns--;
+        return eff.turns > 0;
+      }
+      return true;
+    });
+    if(attacker.hp <= 0){ attacker.hp = 0; attacker.alive = false; updateHPBars();
+      if(battle.enemies.every(e=>!e.alive)){ return endBattle(true) }
+      if(battle.players.every(p=>!p.alive)){ return endBattle(false) }
+      if(state.settings.autoBattle && !battlePaused) setTimeout(battleTick, Math.max(200, 700/state.settings.battleSpeed));
+      return;
+    }
+  }
   const targets = turn.side==='p'? battle.enemies.filter(e=>e.alive) : battle.players.filter(p=>p.alive);
   if(targets.length===0){ endBattle(turn.side==='p'); return }
   const target = Math.random()<0.3
@@ -687,6 +733,10 @@ function battleTick(){
     battle.petFirstBurst = false;
     logBattle('🐎 رخش — '+_({fa:'حمله دوبرابر!',en:'Double strike!'}));
   }
+  // Shield effect: reduce incoming damage
+  if(target.effects && target.effects.some(e=>e.type==='shield')){
+    dmg = Math.floor(dmg * 0.7); // 30% reduction from shield
+  }
   target.hp -= dmg;
   state.stats.totalDmg += dmg;
   const atkSel = turn.side==='p'?'#p'+turn.idx:'#e'+turn.idx;
@@ -696,18 +746,87 @@ function battleTick(){
   const tgtEl = document.querySelector(tgtSel);
   if(atkEl) atkEl.classList.add('attacking');
   if(tgtEl) tgtEl.classList.add('hurt');
-  // Skill: every 4th attack, boost dmg 50% + play visual skill burst
+  // Hero-specific skills: every 4th attack triggers unique ability
   if(!battle.skillCounter) battle.skillCounter = {};
   const key = turn.side + turn.idx;
   battle.skillCounter[key] = (battle.skillCounter[key]||0) + 1;
-  if(battle.skillCounter[key] % 4 === 0){
-    dmg = Math.floor(dmg * 1.6);
-    target.hp -= Math.floor(dmg * 0.6); // extra 60% on top
-    state.stats.totalDmg += Math.floor(dmg * 0.6);
-    playSkillAnimation(atkEl, turn.side==='p');
-    // second popup for skill dmg
-    setTimeout(()=>dmgPopup(tgtSel, '✦'+Math.floor(dmg*0.6), true), 250);
-    logBattle('✨ '+attacker.name+' — '+_({fa:'مهارت ویژه!',en:'Special Skill!'}));
+  if(battle.skillCounter[key] % 4 === 0 && turn.side === 'p'){
+    playSkillAnimation(atkEl, true);
+    const hData = heroData(attacker.id);
+    const hClass = hData ? hData.class : 'warrior';
+    // WARRIOR: 2.5x damage strike
+    if(hClass === 'warrior'){
+      const bonusDmg = Math.floor(dmg * 1.5);
+      target.hp -= bonusDmg;
+      state.stats.totalDmg += bonusDmg;
+      setTimeout(()=>dmgPopup(tgtSel, '✦'+bonusDmg, true), 200);
+      logBattle('⚔ '+attacker.name+' — '+_({fa:'ضربه ویرانگر!',en:'Devastating Strike!'}));
+    }
+    // TANK: Shield self + reflect 30% damage for 2 turns
+    else if(hClass === 'tank'){
+      if(!attacker.effects) attacker.effects = [];
+      attacker.effects.push({type:'shield', turns:2, value:0.3});
+      logBattle('🛡 '+attacker.name+' — '+_({fa:'سپر دفاعی!',en:'Defense Shield!'}));
+      sfx('heal');
+    }
+    // MAGE: 2x damage + burn (3 turns DoT)
+    else if(hClass === 'mage'){
+      const bonusDmg = Math.floor(dmg * 1.0);
+      target.hp -= bonusDmg;
+      state.stats.totalDmg += bonusDmg;
+      if(!target.effects) target.effects = [];
+      target.effects.push({type:'burn', turns:3, value:Math.floor(attacker.atk*0.2)});
+      setTimeout(()=>dmgPopup(tgtSel, '🔥'+bonusDmg, true), 200);
+      logBattle('✨ '+attacker.name+' — '+_({fa:'آتش جادویی!',en:'Arcane Fire!'}));
+    }
+    // ARCHER: Hit 2 targets (or 2.5x if only 1)
+    else if(hClass === 'archer'){
+      const allTargets = battle.enemies.filter(e=>e.alive);
+      if(allTargets.length >= 2){
+        const second = allTargets.find(e=>e!==target) || allTargets[0];
+        const bonusDmg = Math.floor(dmg * 0.8);
+        second.hp -= bonusDmg;
+        state.stats.totalDmg += bonusDmg;
+        const secIdx = battle.enemies.indexOf(second);
+        setTimeout(()=>{dmgPopup('#e'+secIdx, '🏹'+bonusDmg, false); if(second.hp<=0){second.hp=0;second.alive=false}}, 250);
+        logBattle('🏹 '+attacker.name+' — '+_({fa:'تیر چندگانه!',en:'Multi-Shot!'}));
+      } else {
+        const bonusDmg = Math.floor(dmg * 1.5);
+        target.hp -= bonusDmg;
+        state.stats.totalDmg += bonusDmg;
+        setTimeout(()=>dmgPopup(tgtSel, '✦'+bonusDmg, true), 200);
+        logBattle('🏹 '+attacker.name+' — '+_({fa:'تیر تمرکزی!',en:'Focused Shot!'}));
+      }
+    }
+    // SUPPORT: Heal all allies 25% + cleanse debuffs
+    else if(hClass === 'support'){
+      const healAmt = Math.floor(heroStats(attacker.id).hp * 0.25);
+      battle.players.forEach(p=>{
+        if(p.alive){
+          p.hp = Math.min(p.maxHp, p.hp + healAmt);
+          // Cleanse debuffs
+          if(p.effects) p.effects = p.effects.filter(e=>e.type!=='burn'&&e.type!=='poison');
+        }
+      });
+      logBattle('💚 '+attacker.name+' — '+_({fa:'شفای تیمی!',en:'Team Heal!'}));
+      sfx('heal');
+    }
+    // Default for any other class
+    else {
+      const bonusDmg = Math.floor(dmg * 0.6);
+      target.hp -= bonusDmg;
+      state.stats.totalDmg += bonusDmg;
+      setTimeout(()=>dmgPopup(tgtSel, '✦'+bonusDmg, true), 200);
+      logBattle('✨ '+attacker.name+' — '+_({fa:'مهارت ویژه!',en:'Special Skill!'}));
+    }
+  }
+  // Enemy skills: just bonus damage
+  if(battle.skillCounter[key] % 4 === 0 && turn.side === 'e'){
+    const bonusDmg = Math.floor(dmg * 0.5);
+    target.hp -= bonusDmg;
+    state.stats.totalDmg += bonusDmg;
+    playSkillAnimation(atkEl, false);
+    setTimeout(()=>dmgPopup(tgtSel, '💀'+bonusDmg, true), 200);
   }
   dmgPopup(tgtSel, dmg, crit);
   sfx(crit?'crit':'hit');
@@ -1416,7 +1535,8 @@ function renderInventory(){
       <img src="${assetPath('item',inv.id)}">
       <div class="i-name">${_(it.name)}</div>
       <div class="i-stats">${it.atk?`⚔+${it.atk} `:''}${it.def?`🛡+${it.def} `:''}${it.hp?`❤+${it.hp} `:''}${it.spd?`💨+${it.spd} `:''}${it.crit?`💥+${it.crit}%`:''}</div>
-      ${equippedBy?`<div class="equipped">✓ ${_(heroData(equippedBy).name)}</div>`:''}`;
+      ${equippedBy?`<div class="equipped">✓ ${_(heroData(equippedBy).name)}</div>`:''}
+      ${(inv.enhanceLevel||0)>0?`<div style="position:absolute;bottom:2px;left:2px;background:var(--ssr);color:#fff;font-size:8px;padding:1px 3px;border-radius:3px;font-weight:900">+${inv.enhanceLevel}</div>`:''}`;
     card.onclick = ()=>{ sfx('click'); openItemDetail(inv) };
     // Add use button for consumables
     if(it && it.type==='consumable'){
@@ -1443,6 +1563,26 @@ function openItemDetail(inv){
   if(it.crit) stats.push(`💥 +${it.crit}%`);
   document.getElementById('iStats').innerHTML = stats.join(' &nbsp; ');
   document.getElementById('iSig').textContent = it.hero? _(D.signature)+': '+_(heroData(it.hero).name)+' (+20%)' : '';
+  // Show enhancement level and button
+  const enhLv = (typeof inv.enhanceLevel === 'number') ? inv.enhanceLevel : 0;
+  const enhBox = document.getElementById('iHeroPicker');
+  if(it.type !== 'consumable'){
+    const rarityMult = it.rarity==='Legendary'?4:it.rarity==='Epic'?3:it.rarity==='Rare'?2:1;
+    const enhCost = (200 + enhLv * 100) * rarityMult;
+    const bonusText = Object.entries(inv.bonusStats||{}).filter(([,v])=>v>0).map(([k,v])=>{
+      const icons = {atk:'⚔',def:'🛡',hp:'❤',spd:'💨',crit:'💥'};
+      return `${icons[k]||k}+${v}`;
+    }).join(' ');
+    const extraDiv = document.createElement('div');
+    extraDiv.style.cssText = 'text-align:center;margin:10px 0;padding:8px;background:#0006;border-radius:10px;border:1px solid #f5c54233';
+    extraDiv.innerHTML = enhLv > 0 
+      ? `<div style="color:var(--ssr);font-weight:900;font-size:14px">+${enhLv} ${bonusText}</div>`
+      : '';
+    extraDiv.innerHTML += enhLv < 10 
+      ? `<button class="big-btn" style="margin-top:6px;width:100%" onclick="enhanceItem(${inv.uid})">🔨 ${_({fa:'ارتقاء',en:'Enhance'})} (${formatNum(enhCost)}💰)</button>`
+      : `<div style="color:var(--ssr);font-weight:900">★ MAX ★</div>`;
+    enhBox.parentNode.insertBefore(extraDiv, enhBox);
+  }
   const box = document.getElementById('iHeroPicker');
   box.innerHTML = `<div style="text-align:center;color:var(--muted);margin-bottom:6px;font-size:12px">${_(D.equip_to)}</div>`;
   const owned = HEROES.filter(h=>state.heroes[h.id]?.owned);
@@ -1703,6 +1843,33 @@ function refreshHome(){
     document.getElementById('nextEnemyImg').src = assetPath('enemy', en.id);
   }
   updateIdle();
+  // Daily login calendar display
+  updateDailyDisplay();
+}
+
+function updateDailyDisplay(){
+  const el = document.getElementById('dailyRewards');
+  if(!el) return;
+  const streak = state.stats.streak || 1;
+  const maxShow = Math.min(7, BALANCE.streakGold.length);
+  let html = '<div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;margin-top:4px">';
+  for(let i=0; i<maxShow; i++){
+    const day = i+1;
+    const claimed = streak > day;
+    const current = streak === day;
+    const gold = BALANCE.streakGold[i]||0;
+    const gems = BALANCE.streakGems[i]||0;
+    html += `<div style="background:${claimed?'var(--green)':current?'var(--gold)':'#0008'};
+      color:${claimed||current?'#000':'var(--muted)'};padding:4px 8px;border-radius:8px;
+      font-size:10px;font-weight:700;text-align:center;min-width:40px;
+      border:1px solid ${current?'var(--gold)':'#f5c54233'}">
+      <div>D${day}</div>
+      <div>${gold}💰</div>
+      ${gems?`<div>${gems}💎</div>`:''}
+    </div>`;
+  }
+  html += '</div>';
+  el.innerHTML = html;
 }
 function refreshUI(){
   document.getElementById('gold').textContent = formatNum(Math.floor(state.gold));
@@ -2004,9 +2171,17 @@ window.addEventListener('DOMContentLoaded', ()=>{
   // start ambient music
   setTimeout(()=>{ if(state.settings.music) playMusic('menu') }, 1200);
 
-  // First time: give bonus starting items
+  // First time: give bonus starting items + free SR hero
   if(!state.onboardingDone && state.stats.battles === 0){
-    ['potion_hp_small','potion_hp_small','ring_bronze','necklace_00'].forEach(id => { if(itemData(id)) addItem(id) });
+    ['potion_hp_small','potion_hp_small','ring_bronze','necklace_00','boots_00'].forEach(id => { if(itemData(id)) addItem(id) });
+    // Give player Gordafarid (SR warrior) as second hero — she's the first female warrior!
+    if(!state.heroes.gordafarid){
+      const gfArmor = addItem('armor_10');
+      const gfWeapon = addItem('weapon_10');
+      state.heroes.gordafarid = {level:1,owned:true,exp:0,equipment:{armor:gfArmor,weapon:gfWeapon},talents:{},talentPoints:1};
+      state.stats.heroCount = Object.values(state.heroes).filter(x=>x.owned).length;
+      state.team.push('gordafarid');
+    }
   }
   if(!state.onboardingDone){
     setTimeout(()=>playIntroCinematic(()=>{
@@ -2030,13 +2205,37 @@ function togglePause(){
   sfx('click');
 }
 
+
+// ---------------- ITEM ENHANCEMENT ----------------
+function enhanceItem(uid){
+  const inv = state.inventory.find(x=>x.uid===uid); if(!inv) return;
+  const it = itemData(inv.id); if(!it || it.type==='consumable') return;
+  if(!inv.enhanceLevel) inv.enhanceLevel = 0;
+  if(inv.enhanceLevel >= 10){ toast(_({fa:'حداکثر ارتقاء!',en:'Max enhancement!'}),'error'); return }
+  // Cost: 200 gold per level + 50 per rarity tier
+  const rarityMult = it.rarity==='Legendary'?4:it.rarity==='Epic'?3:it.rarity==='Rare'?2:1;
+  const cost = (200 + inv.enhanceLevel * 100) * rarityMult;
+  if(state.gold < cost){ toast(_(D.no_gold)+' ('+formatNum(cost)+'💰)','error'); return }
+  state.gold -= cost;
+  inv.enhanceLevel++;
+  // Apply stat boost: +5% per level
+  if(!inv.bonusStats) inv.bonusStats = {};
+  ['atk','def','hp','spd','crit'].forEach(stat=>{
+    if(it[stat]) inv.bonusStats[stat] = Math.floor(it[stat] * 0.05 * inv.enhanceLevel);
+  });
+  sfx('levelup'); haptic(50);
+  toast(`⬆ ${_(it.name)} +${inv.enhanceLevel}`,'success');
+  save(); refreshUI();
+  if(document.getElementById('itemModal').classList.contains('show')) openItemDetail(inv);
+}
+
 Object.assign(window, {
   showScreen, summon, startCampaign, startEndless, toggleAuto, toggleSpeed,
   claimIdle, toggleLang, openHero, closeModal, upgradeHero, upgradeBuilding,
   toggleDeploy, filterInv, switchTab, claimQuest, claimAchievement,
   togglePet, upgradePet, openMinigame, closeMini, forgeHit, toggleSetting,
   exportSave, importSave, resetGame, upgradeTalent, resetTalents, switchHeroTab,
-  openEquipPicker, unequipItem, nextCinematicScene, skipCinematic, tutorialNext, tutorialSkip, playMusic, stopMusic, toggleMusicSetting, startTutorial, togglePause, useConsumable,
+  openEquipPicker, unequipItem, nextCinematicScene, skipCinematic, tutorialNext, tutorialSkip, playMusic, stopMusic, toggleMusicSetting, startTutorial, togglePause, useConsumable, enhanceItem,
 });
 
 // ---------------- ENEMY ITEM DROP CHANCE & CONSUMABLE USE ----------------

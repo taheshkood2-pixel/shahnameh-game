@@ -394,6 +394,8 @@ function summon(type){
         const startArmorUid = (() => { const aid = 'old_cloth_start'; if(!state.inventory.find(i=>i.id===aid)) return addItem(aid); const found = state.inventory.find(i=>i.id===aid && !Object.values(state.heroes).some(h=>h.equipment && Object.values(h.equipment).includes(i.uid))); return found ? found.uid : addItem(aid); })();
         state.heroes[h.id] = {level:1, owned:true, exp:0, equipment:{armor:startArmorUid, weapon:startUids['sword_bronze'], helm:startUids['helm_leather'], boots:startUids['boots_leather']}, talents:{}, talentPoints:1};
         state.stats.heroCount = Object.values(state.heroes).filter(x=>x.owned).length;
+        state.newHeroes = state.newHeroes || [];
+        if(!state.newHeroes.includes(h.id)) state.newHeroes.push(h.id);
         if(h.rarity==='SSR') state.stats.ssrCount++;
         if(h.id==='rostam') state.stats.hasRostam = 1;
         results.push({hero:h, dupe:false, forced});
@@ -486,6 +488,8 @@ function playIntroCinematic(onDone){
 }
 function nextCinematicScene(){
   if(!cinematicState) return;
+  // Stop current audio
+  try{ const audio = document.getElementById('voiceAudio'); audio.pause(); }catch(e){}
   const scene = INTRO_STORY[cinematicState.idx];
   if(!scene){ endCinematic(); return }
   const img = document.getElementById('cineImg');
@@ -510,9 +514,7 @@ function nextCinematicScene(){
 }
 function skipCinematic(){
   if(!cinematicState) return;
-  if(confirm(_({fa:'صحنه‌های داستان را رد کنی؟',en:'Skip the intro cinematic?'}))){
-    endCinematic();
-  }
+  endCinematic(); // Skip immediately — better mobile UX
 }
 function endCinematic(){
   const modal = document.getElementById('cinematicModal');
@@ -555,6 +557,8 @@ function showStory(chapter, phase, onDone){
 // ---------------- BATTLE ----------------
 let battle = null;
 let turnQueue = [];
+let comboCount = 0;
+let lastHitTime = 0;
 
 function startBattle(stage, mode){
   if(state.team.length===0){
@@ -663,6 +667,11 @@ function dmgPopup(sel, amt, crit){
   el.appendChild(p);
   setTimeout(()=>p.remove(), 1000);
   if(state.settings.particleEffects) spawnParticles(el, crit?'#ffd700':'#ff4444');
+  // Screen shake on crits and boss hits
+  if(crit && state.settings.particleEffects){
+    const scene = document.querySelector('.battle-scene');
+    if(scene){ scene.style.animation='none'; void scene.offsetWidth; scene.style.animation='screenShake 0.3s' }
+  }
 }
 function spawnParticles(el, color){
   for(let i=0;i<6;i++){
@@ -865,11 +874,36 @@ function battleTick(){
   }
   dmgPopup(tgtSel, dmg, crit);
   sfx(crit?'crit':'hit');
+  // Flash screen red on big hits
+  if(dmg > attacker.atk * 1.5 && state.settings.particleEffects){
+    const flash = document.createElement('div');
+    flash.style.cssText = 'position:fixed;inset:0;background:rgba(255,0,0,0.15);pointer-events:none;z-index:50;animation:fadeIn 0.1s reverse forwards';
+    document.body.appendChild(flash);
+    setTimeout(()=>flash.remove(), 200);
+  }
   haptic(crit?[30,30,30]:20);
   setTimeout(()=>{
     if(atkEl) atkEl.classList.remove('attacking');
     if(tgtEl) tgtEl.classList.remove('hurt');
   }, 400);
+  // Combo counter
+  const now = Date.now();
+  if(now - lastHitTime < 2000 && turn.side==='p'){ comboCount++ } else { comboCount = 1 }
+  lastHitTime = now;
+  if(comboCount >= 3){
+    let comboEl = document.getElementById('comboDisplay');
+    if(!comboEl){
+      comboEl = document.createElement('div');
+      comboEl.id = 'comboDisplay';
+      comboEl.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#ffd700;font-size:28px;font-weight:900;text-shadow:0 0 10px #000,0 0 20px #ff8c00;pointer-events:none;z-index:10;transition:all 0.3s';
+      document.querySelector('.battle-scene')?.appendChild(comboEl);
+    }
+    comboEl.textContent = comboCount + 'x COMBO!';
+    comboEl.style.opacity = '1';
+    comboEl.style.transform = 'translate(-50%,-50%) scale('+(1+comboCount*0.05)+')';
+    clearTimeout(comboEl._hide);
+    comboEl._hide = setTimeout(()=>{ comboEl.style.opacity='0' }, 1500);
+  }
   if(target.hp<=0){ target.hp=0; target.alive=false; sfx('whoosh') }
   updateHPBars();
   if(battle.enemies.every(e=>!e.alive)){ return endBattle(true) }
@@ -909,7 +943,23 @@ function endBattle(win){
     });
     if(state.settings.music){ playMusic('victory') }
     logBattle('🏆 ' + _(D.victory));
-    setTimeout(()=>toast(`+${r.gold||0}💰 +${r.gems||0}💎 +${r.exp||0}XP` + (r.item?` +${_(itemData(r.item).name)}`:''),'success',3500),500);
+    // Show battle result overlay
+    setTimeout(()=>{
+      const overlay = document.getElementById('battleResult');
+      if(overlay){
+        document.getElementById('resultTitle').textContent = '🏆 ' + _(D.victory);
+        document.getElementById('resultTitle').className = 'result-title victory';
+        let rewHtml = '';
+        if(r.gold) rewHtml += '<div class="reward-item"><span class="r-val">'+formatNum(r.gold)+'</span>💰 طلا</div>';
+        if(r.gems) rewHtml += '<div class="reward-item"><span class="r-val">'+r.gems+'</span>💎 الماس</div>';
+        if(r.exp) rewHtml += '<div class="reward-item"><span class="r-val">'+r.exp+'</span>⭐ تجربه</div>';
+        if(r.scrolls) rewHtml += '<div class="reward-item"><span class="r-val">'+r.scrolls+'</span>📜 طومار</div>';
+        if(r.item && r.item !== 'random') rewHtml += '<div class="reward-item"><span class="r-val">🎁</span>'+_(itemData(r.item).name)+'</div>';
+        document.getElementById('resultRewards').innerHTML = rewHtml;
+        overlay.classList.add('show');
+        sfx('fanfare');
+      }
+    }, 600);
     if(battle.mode==='campaign'){
       state.progress.stage++;
       const ch = chapterData(state.progress.chapter);
@@ -938,7 +988,15 @@ function endBattle(win){
     state.stats.losses++;
     logBattle('💀 ' + _(D.defeat));
     save();
-    setTimeout(()=>{ showScreen('home'); toast('💀 '+_(D.defeat)+' — Upgrade your heroes!','error',3000) }, 2500);
+    setTimeout(()=>{
+      const overlay = document.getElementById('battleResult');
+      if(overlay){
+        document.getElementById('resultTitle').textContent = '💀 ' + _(D.defeat);
+        document.getElementById('resultTitle').className = 'result-title defeat';
+        document.getElementById('resultRewards').innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center">'+_({fa:'قهرمان‌هایت رو ارتقا بده و دوباره تلاش کن!',en:'Upgrade your heroes and try again!'})+'</div>';
+        overlay.classList.add('show');
+      }
+    }, 1500);
   }
   state.stats.goldMax = Math.max(state.stats.goldMax, state.gold);
   state.stats.gemsMax = Math.max(state.stats.gemsMax, state.gems);
@@ -1579,6 +1637,9 @@ function renderHeroDetail(){
       ${evolveBtn}
       <button class="big-btn secondary" style="width:100%;margin-top:5px" ${!owned?'disabled':''} onclick="toggleDeploy('${id}')">
         <span>${state.team.includes(id)?'✓ '+_(D.in_team):_(D.deploy)}</span>
+      </button>
+      <button class="big-btn secondary" style="width:100%;margin-top:4px;font-size:12px" ${!owned?'disabled':''} onclick="autoEquipBest('${id}')">
+        <span>🛡 ${_({fa:'تجهیز خودکار بهترین',en:'Auto-Equip Best'})}</span>
       </button>`;
     if(owned && h.voice) playVoice(h.voice);
   } else if(currentHeroTab==='talent'){
@@ -2276,6 +2337,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
       const gfWeapon = addItem('weapon_10');
       state.heroes.gordafarid = {level:1,owned:true,exp:0,equipment:{armor:gfArmor,weapon:gfWeapon},talents:{},talentPoints:1};
       state.stats.heroCount = Object.values(state.heroes).filter(x=>x.owned).length;
+        state.newHeroes = state.newHeroes || [];
+        if(!state.newHeroes.includes(h.id)) state.newHeroes.push(h.id);
       state.team.push('gordafarid');
     }
   }
@@ -2467,13 +2530,64 @@ function completeDailyChallenge(){
   save();
 }
 
+
+// ---------------- AUTO-EQUIP BEST ITEMS ----------------
+function autoEquipBest(heroId){
+  const s = state.heroes[heroId]; if(!s || !s.owned) return;
+  if(!s.equipment) s.equipment = {};
+  const h = heroData(heroId); if(!h) return;
+  const types = ['weapon','helm','armor','boots','ring','necklace','belt'];
+  let equipped = 0;
+  types.forEach(type=>{
+    // Find best unequipped item of this type
+    const available = state.inventory.filter(inv=>{
+      const it = itemData(inv.id);
+      if(!it || it.type !== type) return false;
+      // Check not equipped by anyone
+      for(const hid in state.heroes){
+        const eq = state.heroes[hid].equipment||{};
+        if(Object.values(eq).includes(inv.uid)) return false;
+      }
+      return true;
+    });
+    if(available.length === 0) return;
+    // Sort by total stats (simple power score)
+    available.sort((a,b)=>{
+      const ia = itemData(a.id); const ib = itemData(b.id);
+      const pa = (ia.atk||0)*3+(ia.def||0)*2+(ia.hp||0)/2+(ia.spd||0)*4+(ia.crit||0)*5;
+      const pb = (ib.atk||0)*3+(ib.def||0)*2+(ib.hp||0)/2+(ib.spd||0)*4+(ib.crit||0)*5;
+      return pb - pa;
+    });
+    const best = available[0];
+    s.equipment[type] = best.uid;
+    equipped++;
+  });
+  if(equipped > 0){
+    sfx('coin'); haptic(30);
+    toast(`🛡 ${equipped} آیتم خودکار تجهیز شد!`,'success');
+    save(); refreshUI();
+    if(document.getElementById('heroModal').classList.contains('show')) renderHeroDetail();
+  } else {
+    toast(_({fa:'آیتمی برای تجهیز نیست',en:'No items to equip'}),'error');
+  }
+}
+
+
+function closeBattleResult(){
+  const overlay = document.getElementById('battleResult');
+  if(overlay) overlay.classList.remove('show');
+  if(battle && battle.mode === 'campaign') showScreen('home');
+  else if(battle && battle.mode === 'endless') showScreen('home');
+  else showScreen('home');
+}
+
 Object.assign(window, {
   showScreen, summon, startCampaign, startEndless, toggleAuto, toggleSpeed,
   claimIdle, toggleLang, openHero, closeModal, upgradeHero, upgradeBuilding,
   toggleDeploy, filterInv, switchTab, claimQuest, claimAchievement,
   togglePet, upgradePet, openMinigame, closeMini, forgeHit, toggleSetting,
   exportSave, importSave, resetGame, upgradeTalent, resetTalents, switchHeroTab,
-  openEquipPicker, unequipItem, nextCinematicScene, skipCinematic, tutorialNext, tutorialSkip, playMusic, stopMusic, toggleMusicSetting, startTutorial, togglePause, useConsumable, enhanceItem, renderShop, buyShopItem, evolveHero, doPrestige, startDailyChallenge, getSetBonus,
+  openEquipPicker, unequipItem, nextCinematicScene, skipCinematic, tutorialNext, tutorialSkip, playMusic, stopMusic, toggleMusicSetting, startTutorial, togglePause, useConsumable, enhanceItem, renderShop, buyShopItem, evolveHero, doPrestige, autoEquipBest, closeBattleResult, startDailyChallenge, getSetBonus,
 });
 
 // ---------------- ENEMY ITEM DROP CHANCE & CONSUMABLE USE ----------------

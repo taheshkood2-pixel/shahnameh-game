@@ -518,7 +518,7 @@ html[dir=ltr] .hero-card .tp-badge{right:auto;left:3px}
   cursor:pointer;font-family:inherit;font-weight:700;z-index:10}
 html[dir=ltr] .cine-skip{left:auto;right:14px}
 .cine-img-wrap{flex:1;overflow:hidden;background:#000;position:relative;min-height:40vh}
-.cine-img-wrap img{width:100%;height:100%;object-fit:cover;transition:opacity 0.4s;display:block}
+.cine-img-wrap img{width:100%;height:100%;object-fit:cover;transition:opacity 0.6s;display:block;filter:brightness(0.9) contrast(1.1)}
 @keyframes kenBurns{
   0%{transform:scale(1.05) translate(0,0)}
   100%{transform:scale(1.15) translate(-2%,-1%)}
@@ -526,7 +526,7 @@ html[dir=ltr] .cine-skip{left:auto;right:14px}
 .cine-bottom{background:linear-gradient(180deg,#0a0517ee,#0a0517);padding:16px;
   border-top:2px solid var(--gold);min-height:38vh;display:flex;flex-direction:column;justify-content:space-between}
 .cine-counter{color:var(--gold);text-align:center;font-size:11px;margin-bottom:8px;opacity:0.8}
-.cine-text{color:#f5e9c8;font-size:15px;line-height:2;text-align:center;
+.cine-text{color:#f5e9c8;font-size:16px;line-height:2.2;text-align:center;letter-spacing:0.3px;text-shadow:0 2px 8px #000;
   transition:opacity 0.4s;white-space:pre-wrap;font-weight:400;flex:1;
   display:flex;align-items:center;justify-content:center;padding:0 8px}
 .cine-next{background:linear-gradient(180deg,#f5c542,#c1272d);color:#0f0620;
@@ -577,6 +577,14 @@ html[dir=ltr] .cine-skip{left:auto;right:14px}
 .tut-actions{display:flex;gap:8px;justify-content:center;align-items:center}
 .tut-actions .big-btn{min-width:100px;padding:8px 18px;font-size:13px;margin:0}
 
+@keyframes screenShake{
+  0%,100%{transform:translateX(0)}
+  10%{transform:translateX(-5px) rotate(-0.5deg)}
+  30%{transform:translateX(5px) rotate(0.5deg)}
+  50%{transform:translateX(-3px)}
+  70%{transform:translateX(3px)}
+  90%{transform:translateX(-1px)}
+}
 .hidden{display:none!important}
 
 /* ===== MOBILE FIXES v15 ===== */
@@ -654,6 +662,18 @@ html[dir=ltr] .cine-skip{left:auto;right:14px}
 /* Achievement/Quest rows */
 .quest-row{min-height:56px}
 .ach-row{min-height:52px}
+
+/* ===== BATTLE RESULT OVERLAY ===== */
+.battle-result{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;
+  background:linear-gradient(180deg,#000e,#0f0620ee);flex-direction:column;gap:12px;padding:20px}
+.battle-result.show{display:flex;animation:fadeIn 0.5s}
+.result-title{font-size:32px;font-weight:900;text-shadow:0 0 20px currentColor}
+.result-title.victory{color:#ffd700}
+.result-title.defeat{color:#ff4444}
+.result-rewards{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.reward-item{background:#0008;border:1px solid #f5c54255;border-radius:12px;padding:8px 16px;
+  text-align:center;color:var(--gold);font-weight:700;font-size:14px;min-width:70px}
+.reward-item .r-val{font-size:20px;display:block;margin-bottom:2px}
 </style>
 </head>
 <body>
@@ -956,6 +976,16 @@ html[dir=ltr] .cine-skip{left:auto;right:14px}
   </div>
 </div>
 
+
+<!-- BATTLE RESULT OVERLAY -->
+<div class="battle-result" id="battleResult">
+  <div class="result-title" id="resultTitle"></div>
+  <div class="result-rewards" id="resultRewards"></div>
+  <button class="big-btn" onclick="closeBattleResult()" style="margin-top:10px">
+    <span data-fa="ادامه ▶" data-en="Continue ▶">ادامه ▶</span>
+  </button>
+</div>
+
 <div id="toast"></div>
 <div id="summonAnim"><div class="beam"></div></div>
 <audio id="voiceAudio" preload="auto"></audio>
@@ -971,7 +1001,7 @@ html[dir=ltr] .cine-skip{left:auto;right:14px}
 </style>
 <style>
 .hero-portrait-wrapper { position:relative; display:inline-block; max-width:200px; }
-.hero-equip-overlay { position:absolute; width:28px; height:28px; border-radius:50%; border:2px solid #f5c542; object-fit:cover; background:#000; }
+.hero-equip-overlay { position:absolute; width:36px; height:36px; border-radius:50%; border:2px solid #f5c542; object-fit:cover; background:#000; box-shadow:0 0 8px #f5c54266; z-index:2; }
 .hero-equip-weapon { top:10px; right:5px; }
 .hero-equip-helm { top:45px; left:5px; }
 .hero-equip-armor { bottom:60px; left:10px; }

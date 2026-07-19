@@ -51,38 +51,31 @@ jobs:
       - name: Accept Android licenses
         run: yes | sdkmanager --licenses || true
 
-      - name: Install Capacitor and dependencies
-        run: |
-          echo "📦 Installing Capacitor..."
-          npm install @capacitor/core @capacitor/cli @capacitor/android
-          
-          echo "✅ Capacitor installed successfully"
-          npm list @capacitor/core
+      - name: Install Capacitor
+        run: npm install @capacitor/core @capacitor/cli @capacitor/android
 
-      - name: Prepare web directory
+      - name: Prepare web directory (lightweight)
         run: |
-          echo "📁 Creating www directory..."
           mkdir -p www
+          cp index.html data.js game.js music.js sw.js manifest.json www/
           
-          echo "📋 Listing files in current directory:"
-          ls -la
-          
-          echo "📋 Copying files to www..."
-          cp index.html www/ || echo "⚠️ index.html not found"
-          cp data.js www/ || echo "⚠️ data.js not found"
-          cp game.js www/ || echo "⚠️ game.js not found"
-          cp music.js www/ || echo "⚠️ music.js not found"
-          cp sw.js www/ || echo "⚠️ sw.js not found"
-          cp manifest.json www/ || echo "⚠️ manifest.json not found"
-          cp -r assets www/ || echo "⚠️ assets folder not found"
-          
-          echo "📂 Files in www directory:"
-          ls -la www/
+          # Only copy essential assets (skip audio to save space)
+          mkdir -p www/assets
+          cp -r assets/heroes www/assets/ 2>/dev/null || true
+          cp -r assets/enemies www/assets/ 2>/dev/null || true
+          cp -r assets/items www/assets/ 2>/dev/null || true
+          cp -r assets/bg www/assets/ 2>/dev/null || true
+          cp -r assets/story www/assets/ 2>/dev/null || true
+          cp -r assets/ui www/assets/ 2>/dev/null || true
+          cp -r assets/fonts www/assets/ 2>/dev/null || true
+          cp -r assets/sprites www/assets/ 2>/dev/null || true
+          cp -r assets/pets www/assets/ 2>/dev/null || true
+          # Skip audio (too large for APK) - can stream online
+          echo "www size:"
           du -sh www/
 
-      - name: Initialize Capacitor
+      - name: Initialize and sync Capacitor
         run: |
-          echo "⚙️ Creating capacitor.config.json..."
           cat > capacitor.config.json << 'CEOF'
           {
             "appId": "com.shahnameh.game",
@@ -92,50 +85,40 @@ jobs:
           }
           CEOF
           
-          echo "✅ Capacitor config created"
-          cat capacitor.config.json
-
-      - name: Add Android platform
-        run: |
-          echo "🔧 Adding Android platform..."
           npx cap add android
-          
-          echo "✅ Android platform added"
-          ls -la android/
-
-      - name: Sync Capacitor
-        run: |
-          echo "🔄 Syncing Capacitor..."
           npx cap sync android
-          
-          echo "✅ Capacitor synced"
+
+      - name: Fix Gradle memory
+        run: |
+          cd android
+          echo "org.gradle.jvmargs=-Xmx2048m" >> gradle.properties
+          echo "android.useAndroidX=true" >> gradle.properties
 
       - name: Build APK
         run: |
-          echo "🏗️ Building APK..."
           cd android
-          
-          echo "📋 Making gradlew executable..."
           chmod +x gradlew
           
-          echo "🔨 Running Gradle build..."
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          echo "🔨 Building APK with Gradle..."
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
           
-          echo "✅ Build completed"
+          BUILD_STATUS=${PIPESTATUS[0]}
           
-          echo "📋 Looking for APK..."
-          find . -name "*.apk" -type f
+          if [ $BUILD_STATUS -ne 0 ]; then
+            echo "❌ Build failed! Showing last 80 lines:"
+            tail -80 build.log
+            exit $BUILD_STATUS
+          fi
           
-          echo "📋 Copying APK..."
+          echo "✅ Build succeeded!"
+          find . -name "*.apk" -type f -exec ls -lh {} \;
           cp app/build/outputs/apk/debug/app-debug.apk ../shahnameh-v22.apk
-          
-          echo "✅ APK copied"
           ls -lh ../shahnameh-v22.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: shahnameh-apk
+          name: shahnameh-apk-v22
           path: shahnameh-v22.apk
           retention-days: 30
 
@@ -148,12 +131,11 @@ jobs:
             ## 🏛 Shahnameh: Rise of Kings v22
             
             ### 📱 Install
-            1. Download the APK file below
-            2. Enable "Install from unknown sources" in your Android settings
-            3. Install and enjoy the game!
+            1. Download APK
+            2. Enable unknown sources
+            3. Install & play!
             
-            ### 🌐 Play Online
-            https://taheshkood2-pixel.github.io/shahnameh-game/
+            ### 🌐 Online: https://taheshkood2-pixel.github.io/shahnameh-game/
           files: shahnameh-v22.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

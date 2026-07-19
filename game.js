@@ -325,7 +325,11 @@ function summon(type){
         checkLevelUp(h.id);
         results.push({hero:h, dupe:true, gold:dupeGold, forced});
       } else {
-        state.heroes[h.id] = {level:1, owned:true, exp:0, equipment:{}, talents:{}, talentPoints:1};
+        state.heroes[h.id] = {level:1, owned:true, exp:0, equipment:{armor:'old_cloth_start'}, talents:{}, talentPoints:1};
+        // Ensure default clothing is in inventory for new heroes
+        if(!state.inventory.find(i=>i.id==='old_cloth_start')){
+          state.inventory.push({id:'old_cloth_start',uid:'default_armor_new',rarity:'Common'});
+        }
         state.stats.heroCount = Object.values(state.heroes).filter(x=>x.owned).length;
         if(h.rarity==='SSR') state.stats.ssrCount++;
         if(h.id==='rostam') state.stats.hasRostam = 1;

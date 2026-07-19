@@ -1,7 +1,7 @@
-const CACHE = 'shahnameh-v7';
-const ASSETS = ['./','./index.html','./data.js','./game.js','./music.js','./manifest.json'];
+const CACHE = 'shahnameh-v11';
+const CORE = ['./','./index.html','./data.js','./game.js','./music.js','./manifest.json'];
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(()=>self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).then(()=>self.skipWaiting()));
 });
 self.addEventListener('activate', e => e.waitUntil(
   caches.keys().then(keys => Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))
@@ -9,6 +9,8 @@ self.addEventListener('activate', e => e.waitUntil(
 ));
 self.addEventListener('fetch', e => {
   if(e.request.method!=='GET') return;
+  const url = new URL(e.request.url);
+  const isAsset = url.pathname.includes('/assets/');
   e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).then(res => {
     if(res.ok){ const clone = res.clone(); caches.open(CACHE).then(c => c.put(e.request, clone)).catch(()=>{}) }
     return res;
